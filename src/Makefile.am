@@ -51,7 +51,11 @@ nouveau_drv_la_SOURCES = \
          nv_xaa.c \
 	 nv30_exa.c \
 	 nv30_fpinst.h \
-	 nv40_vpinst.h
+	 nv40_vpinst.h \
+	 nv_xf86Modes.c \
+	 nv_xf86Modes.h \
+	 nv_xf86Crtc.c \
+	 nv_xf86Crtc.h
 
 #riva128_la_LTLIBRARIES = riva128.la
 #riva128_la_LDFLAGS = -module -avoid-version
