@@ -504,8 +504,6 @@ NVCommonSetup(ScrnInfoPtr pScrn)
 
     NVLockUnlock(pNv, 0);
 
-    NVI2CInit(pScrn);
-
     pNv->Television = FALSE;
 
     if(!pNv->twoHeads) {

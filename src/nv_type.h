@@ -136,15 +136,6 @@ typedef struct _NVOutputPrivateRec {
 
 #define NVOutputPrivate(o) ((NVOutputPrivatePtr (o)->driver_private)
 
-typedef struct _NVOutputRec {
-	Bool enabled;
-	DisplayModeRec curMode;
-	DisplayModeRec desiredMode;
-#ifdef RANDR_12_INTERFACE
-	RRCrtcPtr randr_crtc;
-#endif
-} NVPipeRec, *NVPipePtr;
-
 typedef struct _NVRec *NVPtr;
 typedef struct _NVRec {
     xf86CrtcConfigRec xf86_config;
@@ -219,6 +210,7 @@ typedef struct _NVRec {
     CARD32              curFg, curBg;
     CARD32              curImage[256];
     /* I2C / DDC */
+    int ddc2;
     I2CBusPtr           I2C;
     xf86Int10InfoPtr    pInt;
     void		(*VideoTimerCallback)(ScrnInfoPtr, Time);

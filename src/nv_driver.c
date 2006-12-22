@@ -1038,11 +1038,13 @@ static Bool NVPreInitDRI(ScrnInfoPtr pScrn)
 Bool
 NVPreInit(ScrnInfoPtr pScrn, int flags)
 {
+    xf86CrtcConfigPtr   xf86_config; 
     NVPtr pNv;
     MessageType from;
     int i, max_width, max_height;
     ClockRangePtr clockRanges;
     const char *s;
+    int num_crtc = 2;
 
     if (flags & PROBE_DETECT) {
         EntityInfoPtr pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
@@ -1500,10 +1502,41 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
     pNv->alphaCursor = (pNv->Architecture >= NV_ARCH_10) &&
                        ((pNv->Chipset & 0x0ff0) != CHIPSET_NV10);
 
+
+    /* Allocate an xf86CrtcConfig */
+    xf86CrtcConfigInit (pScrn);
+    xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+    
+    max_width = 16384;
+    xf86CrtcSetSizeRange (pScrn, 320, 200, max_width, 2048);
+    
     if (NVPreInitDRI(pScrn) == FALSE) {
 	    xf86FreeInt10(pNv->pInt);
 	    return FALSE;
     }
+
+    NVI2CInit(pScrn);
+
+    NvSetupOutputs(pScrn);
+    for (i = 0; i < num_crtc; i++) {
+        nv_crtc_init(pScrn, i);
+    }
+
+
+    /* Do an initial detection of the outputs while none are configured on yet.
+     * This will give us some likely legitimate response for later if both
+     * pipes are already allocated and we're asked to do a detect.
+     */
+    for (i = 0; i < xf86_config->num_output; i++) {
+      xf86OutputPtr	      output = xf86_config->output[i];
+      
+      output->status = (*output->funcs->detect) (output);
+    }
+    
+    if (!xf86InitialConfiguration (pScrn)) {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "No valid modes.\n");
+	return FALSE;
+    }    
 	
     NVCommonSetup(pScrn);
 
