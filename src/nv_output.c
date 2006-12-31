@@ -78,6 +78,15 @@ void NVWriteRAMDAC0(xf86OutputPtr output, CARD32 ramdac_reg, CARD32 val)
   NV_WR32(pNv->PRAMDAC0, ramdac_reg, val);
 }
 
+CARD32 NVReadRAMDAC0(xf86OutputPtr output, CARD32 ramdac_reg)
+{
+  NVOutputPrivatePtr nv_output = output->driver_private;
+  ScrnInfoPtr	pScrn = output->scrn;
+  NVPtr pNv = NVPTR(pScrn);
+
+  return NV_RD32(pNv->PRAMDAC0, ramdac_reg);
+}
+
 void NVWriteRAMDAC(xf86OutputPtr output, CARD32 ramdac_reg, CARD32 val)
 {
   NVOutputPrivatePtr nv_output = output->driver_private;
@@ -159,17 +168,86 @@ nv_output_dpms(xf86OutputPtr output, int mode)
 
 }
 
+void nv_output_save_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
+{
+    ScrnInfoPtr pScrn = output->scrn;
+    NVPtr pNv = NVPTR(pScrn);
+
+    state->vpll         = NVReadRAMDAC0(output, NV_RAMDAC_VPLL);
+    if(pNv->twoHeads)
+       state->vpll2     = NVReadRAMDAC0(output, NV_RAMDAC_VPLL2);
+    if(pNv->twoStagePLL) {
+        state->vpllB    = NVReadRAMDAC0(output, NV_RAMDAC_VPLL_B);
+        state->vpll2B   = NVReadRAMDAC0(output, NV_RAMDAC_VPLL2_B);
+    }
+    state->pllsel       = NVReadRAMDAC0(output, NV_RAMDAC_PLL_SELECT);
+    state->general      = NVReadRAMDAC(output, NV_RAMDAC_GENERAL_CONTROL);
+    state->scale        = NVReadRAMDAC(output, NV_RAMDAC_FP_CONTROL);
+    state->config       = nvReadFB(pNv, NV_PFB_CFG0);
+    
+    if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
+	state->dither = NVReadRAMDAC(output, NV_RAMDAC_DITHER_NV11);
+    } else if(pNv->twoHeads) {
+	state->dither = NVReadRAMDAC(output, NV_RAMDAC_FP_DITHER);
+    }
+    state->crtcSync = NVReadRAMDAC(output, NV_RAMDAC_FP_HCRTC);
+
+}
+
+void nv_output_load_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
+{
+    NVOutputPrivatePtr nv_output = output->driver_private;
+    ScrnInfoPtr	pScrn = output->scrn;
+    NVPtr pNv = NVPTR(pScrn);
+
+    if(nv_output->mon_type == MT_CRT) {
+	NVWriteRAMDAC0(output, NV_RAMDAC_PLL_SELECT, state->pllsel);
+	NVWriteRAMDAC0(output, NV_RAMDAC_VPLL, state->vpll);
+	if(pNv->twoHeads)
+	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL2, state->vpll2);
+	if(pNv->twoStagePLL) {
+	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL_B, state->vpllB);
+	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL2_B, state->vpll2B);
+	}
+    } else {
+	NVWriteRAMDAC(output, NV_RAMDAC_FP_CONTROL, state->scale);
+	NVWriteRAMDAC(output, NV_RAMDAC_FP_HCRTC, state->crtcSync);
+
+	if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
+	    NVWriteRAMDAC(output, NV_RAMDAC_DITHER_NV11, state->dither);
+	} else if(pNv->twoHeads) {
+	    NVWriteRAMDAC(output, NV_RAMDAC_FP_DITHER, state->dither);
+	}
+    }
+    NVWriteRAMDAC(output, NV_RAMDAC_GENERAL_CONTROL, state->general);
+}
+
+
 static void
 nv_output_save (xf86OutputPtr output)
 {
+    NVOutputPrivatePtr nv_output = output->driver_private;
+    ScrnInfoPtr	pScrn = output->scrn;
+    NVPtr pNv = NVPTR(pScrn);
+    RIVA_HW_STATE *state;
+
+    state = &pNv->SavedReg;
     
+    nv_output_save_state_ext(output, state);    
+
 }
 
 static void
 nv_output_restore (xf86OutputPtr output)
 {
+    NVOutputPrivatePtr nv_output = output->driver_private;
+    ScrnInfoPtr	pScrn = output->scrn;
+    NVPtr pNv = NVPTR(pScrn);
+    RIVA_HW_STATE *state;
 
-
+    state = &pNv->SavedReg;
+    
+    nv_output_load_state_ext(output, state);
 }
 
 static int
@@ -202,27 +280,8 @@ nv_output_mode_set(xf86OutputPtr output, DisplayModePtr mode,
     RIVA_HW_STATE *state;
 
     state = &pNv->ModeReg;
-    if(nv_output->mon_type == MT_CRT) {
-	NVWriteRAMDAC0(output, NV_RAMDAC_PLL_SELECT, state->pllsel);
-	NVWriteRAMDAC0(output, NV_RAMDAC_VPLL, state->vpll);
-	if(pNv->twoHeads)
-	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL2, state->vpll2);
-	if(pNv->twoStagePLL) {
-	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL_B, state->vpllB);
-	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL2_B, state->vpll2B);
-	}
-    } else {
-	NVWriteRAMDAC(output, NV_RAMDAC_FP_CONTROL, state->scale);
-	NVWriteRAMDAC(output, NV_RAMDAC_FP_HCRTC, state->crtcSync);
 
-	if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
-	    NVWriteRAMDAC(output, NV_RAMDAC_DITHER_NV11, state->dither);
-	} else if(pNv->twoHeads) {
-	    NVWriteRAMDAC(output, NV_RAMDAC_FP_DITHER, state->dither);
-	}
-    }
-    NVWriteRAMDAC(output, NV_RAMDAC_GENERAL_CONTROL, state->general);
-
+    nv_output_load_state_ext(output, state);
 }
 
 static Bool
