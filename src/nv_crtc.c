@@ -848,7 +848,9 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 
     regp->CRTC[NV_VGA_CRTCX_FP_HTIMING] = 0;
     regp->CRTC[NV_VGA_CRTCX_FP_VTIMING] = 0;
-    regp->displayV = mode->CrtcVDisplay;
+
+    regp->unk830 = mode->CrtcVDisplay - 3;
+    regp->unk834 = mode->CrtcVDisplay - 1;
 }
 
 /**
@@ -1012,8 +1014,8 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
         nvWriteMC(pNv, 0x1588, 0);
 
         nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_CURSOR_CONFIG, regp->cursorConfig);
-        nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0830, regp->displayV - 3);
-        nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0834, regp->displayV - 1);
+        nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0830, regp->unk830);
+        nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0834, regp->unk834);
 	
 	NVWriteVgaCrtc(crtc, NV_VGA_CRTCX_FP_HTIMING, regp->CRTC[NV_VGA_CRTCX_FP_HTIMING]);
 	NVWriteVgaCrtc(crtc, NV_VGA_CRTCX_FP_VTIMING, regp->CRTC[NV_VGA_CRTCX_FP_VTIMING]);
@@ -1102,6 +1104,9 @@ static void nv_crtc_save_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
     regp->CRTC[NV_VGA_CRTCX_CURCTL1] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_CURCTL1);
     regp->CRTC[NV_VGA_CRTCX_CURCTL2] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_CURCTL2);
     regp->CRTC[NV_VGA_CRTCX_INTERLACE] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_INTERLACE);
+
+    regp->unk830 = nvReadCRTC(pNv, nv_crtc->crtc, NV_CRTC_0830);
+    regp->unk834 = nvReadCRTC(pNv, nv_crtc->crtc, NV_CRTC_0834);
 
     if(pNv->Architecture >= NV_ARCH_10) {
         if(pNv->twoHeads) {
