@@ -809,6 +809,8 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
                     mode->Clock,
                     mode->Flags);
 
+    if (is_fp)
+      regp->CRTC[NV_VGA_CRTCX_PIXEL] |= (1 << 7);
 
     nvReg->vpll = nvReg->pll;
     nvReg->vpll2 = nvReg->pll;
