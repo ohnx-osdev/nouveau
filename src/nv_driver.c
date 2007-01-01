@@ -1853,14 +1853,10 @@ NVRestore(ScrnInfoPtr pScrn)
 	xf86_config->crtc[i]->funcs->restore(xf86_config->crtc[i]);
     }
 
-    nvWriteVGA(pNv, NV_VGA_CRTCX_OWNER, pNv->vtOWNER);
-
 #ifndef __powerpc__
    vgaflags |= VGA_SR_FONTS;
 #endif
     vgaHWRestore(pScrn, vgaReg, vgaflags);
-
-    nvWriteVGA(pNv, NV_VGA_CRTCX_OWNER, pNv->vtOWNER);
 
     vgaHWLock(hwp);
 

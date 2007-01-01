@@ -364,7 +364,6 @@ void nv_crtc_calc_state_ext(
             regp->CRTC[NV_VGA_CRTCX_CURCTL2] = 0x00000000;
             state->pllsel   = 0x10000700;
             state->config   = 0x00001114;
-            state->general  = bpp == 16 ? 0x00101100 : 0x00100100;
             regp->CRTC[NV_VGA_CRTCX_REPAINT1] = hDisplaySize < 1280 ? 0x04 : 0x00;
             break;
         case NV_ARCH_10:
@@ -409,7 +408,6 @@ void nv_crtc_calc_state_ext(
 
             state->pllsel   = 0x10000700;
             state->config   = nvReadFB(pNv, NV_PFB_CFG0);
-            state->general  = bpp == 16 ? 0x00101100 : 0x00100100;
             regp->CRTC[NV_VGA_CRTCX_REPAINT1] = hDisplaySize < 1280 ? 0x04 : 0x00;
             break;
     }
@@ -420,8 +418,6 @@ void nv_crtc_calc_state_ext(
       regp->CRTC[NV_VGA_CRTCX_FIFO_LWM_NV30] = state->arbitration1 >> 8;
     }
     
-    if(bpp != 8) /* DirectColor */
-	state->general |= 0x00000030;
 
     regp->CRTC[NV_VGA_CRTCX_REPAINT0] = (((width / 8) * pixelDepth) & 0x700) >> 3;
     regp->CRTC[NV_VGA_CRTCX_PIXEL] = (pixelDepth > 2) ? 3 : pixelDepth;
@@ -839,17 +835,16 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
       }
     }
 
-    state->cursorConfig = 0x00000100;
+    regp->cursorConfig = 0x00000100;
     if(mode->Flags & V_DBLSCAN)
-       state->cursorConfig |= (1 << 4);
+       regp->cursorConfig |= (1 << 4);
     if(pNv->alphaCursor) {
         if((pNv->Chipset & 0x0ff0) != CHIPSET_NV11) 
-           state->cursorConfig |= 0x04011000;
+           regp->cursorConfig |= 0x04011000;
         else
-           state->cursorConfig |= 0x14011000;
-        state->general |= (1 << 29);
+           regp->cursorConfig |= 0x14011000;
     } else
-       state->cursorConfig |= 0x02000000;
+       regp->cursorConfig |= 0x02000000;
 
     regp->CRTC[NV_VGA_CRTCX_FP_HTIMING] = 0;
     regp->CRTC[NV_VGA_CRTCX_FP_VTIMING] = 0;
@@ -915,8 +910,9 @@ void nv_crtc_restore(xf86CrtcPtr crtc)
     nv_crtc_load_state_ext(crtc, &pNv->SavedReg);
     nv_crtc_load_state_vga(crtc, &pNv->SavedReg);
 
-    NVCrtcLockUnlock(crtc, 1);
+    nvWriteVGA(pNv, NV_VGA_CRTCX_OWNER, pNv->vtOWNER);
 
+    NVCrtcLockUnlock(crtc, 1);
 }
 
 static const xf86CrtcFuncsRec nv_crtc_funcs = {
@@ -1029,7 +1025,7 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
         nvWriteVIDEO(pNv, NV_PVIDEO_LIMIT(1), pNv->VRAMPhysicalSize - 1);
         nvWriteMC(pNv, 0x1588, 0);
 
-        nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_CURSOR_CONFIG, state->cursorConfig);
+        nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_CURSOR_CONFIG, regp->cursorConfig);
         nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0830, state->displayV - 3);
         nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0834, state->displayV - 1);
 	
@@ -1129,7 +1125,7 @@ static void nv_crtc_save_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
         }
         regp->CRTC[NV_VGA_CRTCX_EXTRA] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_EXTRA);
 
-        state->cursorConfig = nvReadCRTC(pNv, nv_crtc->crtc, NV_CRTC_CURSOR_CONFIG);
+        regp->cursorConfig = nvReadCRTC(pNv, nv_crtc->crtc, NV_CRTC_CURSOR_CONFIG);
 
 	regp->CRTC[NV_VGA_CRTCX_FP_HTIMING] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_FP_HTIMING);
 	regp->CRTC[NV_VGA_CRTCX_FP_VTIMING] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_FP_VTIMING);
