@@ -763,7 +763,18 @@ void NVInitSurface(ScrnInfoPtr pScrn, RIVA_HW_STATE *state)
     /* end of surfaces */
 }
 
-void NVInitGraphContext(ScrnInfoPtr pScrn, RIVA_HW_STATE *state)
+void NVInitTimer(ScrnInfoPtr pScrn)
+{
+  NVPtr pNv = NVPTR(pScrn);
+
+  nvWriteTIMER(pNv, 0x0200, 0x00000008);
+  nvWriteTIMER(pNv, 0x0210, 0x00000003);
+  /*TODO: DRM handle PTIMER interrupts */
+  nvWriteTIMER(pNv, 0x0140, 0x00000000);
+  nvWriteTIMER(pNv, 0x0100, 0xFFFFFFFF);
+}
+
+void NVInitGraphContext(ScrnInfoPtr pScrn)
 {
     NVPtr pNv = NVPTR(pScrn);
     int i, j;
@@ -1022,3 +1033,4 @@ void NVInitGraphContext(ScrnInfoPtr pScrn, RIVA_HW_STATE *state)
     /* end of clipping values */
 
 }
+

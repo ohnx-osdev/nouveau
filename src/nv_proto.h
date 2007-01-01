@@ -114,7 +114,7 @@ void nv4UpdateArbitrationSettings (unsigned      VClk,
 				   NVPtr        pNv);
 
 void NVInitSurface(ScrnInfoPtr pScrn, RIVA_HW_STATE *state);
-void NVInitGraphContext(ScrnInfoPtr pScrn, RIVA_HW_STATE *state);
+void NVInitGraphContext(ScrnInfoPtr pScrn);
 
 /* nv_i2c.c */
 Bool NV_I2CInit(ScrnInfoPtr pScrn, I2CBusPtr *bus_ptr, int i2c_reg, char *name);

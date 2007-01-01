@@ -122,7 +122,7 @@ typedef struct _nv_output_reg
     CARD32 dither;
     CARD32 general;
     CARD32 bpp;
-
+    CARD32 unk404;
 } NVOutputRegRec, *NVOutputRegPtr;
 
 typedef struct _riva_hw_state

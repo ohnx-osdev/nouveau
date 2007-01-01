@@ -193,7 +193,7 @@ void nv_output_save_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
 	regp->dither = NVReadRAMDAC(output, NV_RAMDAC_FP_DITHER);
     }
     regp->crtcSync = NVReadRAMDAC(output, NV_RAMDAC_FP_HCRTC);
-
+    regp->unk404 = NVReadRAMDAC(output, NV_RAMDAC_0404);
 }
 
 void nv_output_load_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
@@ -217,14 +217,16 @@ void nv_output_load_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
 	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL_B, state->vpllB);
 	    NVWriteRAMDAC0(output, NV_RAMDAC_VPLL2_B, state->vpll2B);
 	}
-    } else {
-	if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
-	    NVWriteRAMDAC(output, NV_RAMDAC_DITHER_NV11, regp->dither);
-	} else if(pNv->twoHeads) {
-	    NVWriteRAMDAC(output, NV_RAMDAC_FP_DITHER, regp->dither);
-	}
     }
+
+    if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
+      NVWriteRAMDAC(output, NV_RAMDAC_DITHER_NV11, regp->dither);
+    } else if(pNv->twoHeads) {
+      NVWriteRAMDAC(output, NV_RAMDAC_FP_DITHER, regp->dither);
+    }
+
     NVWriteRAMDAC(output, NV_RAMDAC_GENERAL_CONTROL, regp->general);
+    NVWriteRAMDAC(output, NV_RAMDAC_0404, regp->unk404);
 }
 
 
@@ -315,15 +317,21 @@ nv_output_mode_set_regs(xf86OutputPtr output, DisplayModePtr mode)
     int bpp;
     NVPtr pNv = NVPTR(pScrn);
     NVFBLayout *pLayout = &pNv->CurrentLayout;
-    RIVA_HW_STATE *state;
+    RIVA_HW_STATE *state, *sv_state;
     Bool is_fp = FALSE;
-    NVOutputRegPtr regp;
+    NVOutputRegPtr regp, savep;
 
     state = &pNv->ModeReg;
     regp = &state->dac_reg[nv_output->ramdac];
+
+    sv_state = &pNv->SavedReg;
+    savep = &state->dac_reg[nv_output->ramdac];
     
     if (nv_output->mon_type == MT_LCD || nv_output->mon_type == MT_DFP)
 	is_fp = TRUE;
+
+    if (pNv->Architecture >= NV_ARCH_10) 
+      regp->unk404 = savep->unk404 | (1<<25);
 
     regp->bpp    = bpp;    /* this is not bitsPerPixel, it's 8,15,16,32 */
 
@@ -334,19 +342,19 @@ nv_output_mode_set_regs(xf86OutputPtr output, DisplayModePtr mode)
        {
            regp->scale |= (1 << 8) ;
        }
-       regp->crtcSync = NVReadRAMDAC(output, NV_RAMDAC_FP_HCRTC);
+       regp->crtcSync = savep->crtcSync;
        regp->crtcSync += nv_output_tweak_panel(output, state);
     }
 
     if(pNv->twoHeads) {
         if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
-	    regp->dither = NVReadRAMDAC(output, NV_RAMDAC_DITHER_NV11) & ~0x00010000;
+	    regp->dither = savep->dither & ~0x00010000;
            if(pNv->FPDither)
               regp->dither |= 0x00010000;
         } else {
-	    regp->dither = NVReadRAMDAC(output, NV_RAMDAC_FP_DITHER) & ~1;
-           if(pNv->FPDither)
-	       regp->dither |= 1;
+	    regp->dither = savep->dither & ~1;
+	    if(pNv->FPDither)
+	      regp->dither |= 1;
         } 
     }
 

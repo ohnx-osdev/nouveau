@@ -895,6 +895,10 @@ NVEnterVT(int scrnIndex, int flags)
 	NVSave(pScrn);
     }
     
+    NVInitTimer(pScrn);
+    NVInitSurface(pScrn, &pNv->SavedReg);
+    NVInitGraphContext(pScrn);
+
     pScrn->vtSema = TRUE;
     for (i = 0; i < xf86_config->num_crtc; i++)
     {
@@ -1845,13 +1849,17 @@ NVRestore(ScrnInfoPtr pScrn)
     int i;
     int vgaflags = VGA_SR_CMAP | VGA_SR_MODE;
 
-    for (i = 0; i< xf86_config->num_output; i++) {
-	xf86_config->output[i]->funcs->restore(xf86_config->output[i]);
-    }
+    NVCrtcLockUnlock(xf86_config->crtc[0], 0);
+    NVCrtcLockUnlock(xf86_config->crtc[1], 0);
 
     for (i = 0; i < xf86_config->num_crtc; i++) {
 	xf86_config->crtc[i]->funcs->restore(xf86_config->crtc[i]);
     }
+
+    for (i = 0; i< xf86_config->num_output; i++) {
+	xf86_config->output[i]->funcs->restore(xf86_config->output[i]);
+    }
+
 
 #ifndef __powerpc__
    vgaflags |= VGA_SR_FONTS;
@@ -1859,6 +1867,9 @@ NVRestore(ScrnInfoPtr pScrn)
     vgaHWRestore(pScrn, vgaReg, vgaflags);
 
     vgaHWLock(hwp);
+    NVCrtcLockUnlock(xf86_config->crtc[0], 1);
+    NVCrtcLockUnlock(xf86_config->crtc[1], 1);
+
 
 }
 
