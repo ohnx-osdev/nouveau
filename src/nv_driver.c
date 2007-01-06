@@ -1573,12 +1573,12 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
     NVCommonSetup(pScrn);
     NVI2CInit(pScrn);
 
-    NvSetupOutputs(pScrn);
     num_crtc = pNv->twoHeads ? 2 : 1;
     for (i = 0; i < num_crtc; i++) {
         nv_crtc_init(pScrn, i);
     }
 
+    NvSetupOutputs(pScrn);
 
     /* Do an initial detection of the outputs while none are configured on yet.
      * This will give us some likely legitimate response for later if both
@@ -2218,7 +2218,7 @@ NVSave(ScrnInfoPtr pScrn)
     NVRegPtr nvReg = &pNv->SavedReg;
     vgaHWPtr pVga = VGAHWPTR(pScrn);
     vgaRegPtr vgaReg = &pVga->SavedReg;
-    xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
     int i;
     int vgaflags = VGA_SR_CMAP | VGA_SR_MODE;
     

@@ -193,7 +193,7 @@ void nv_output_save_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
 	regp->dither = NVReadRAMDAC(output, NV_RAMDAC_FP_DITHER);
     }
     regp->crtcSync = NVReadRAMDAC(output, NV_RAMDAC_FP_HCRTC);
-    regp->unk404 = NVReadRAMDAC(output, NV_RAMDAC_0404);
+    regp->nv10_cursync = NVReadRAMDAC(output, NV_RAMDAC_NV10_CURSYNC);
 }
 
 void nv_output_load_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
@@ -226,7 +226,7 @@ void nv_output_load_state_ext(xf86OutputPtr output, RIVA_HW_STATE *state)
     }
 
     NVWriteRAMDAC(output, NV_RAMDAC_GENERAL_CONTROL, regp->general);
-    NVWriteRAMDAC(output, NV_RAMDAC_0404, regp->unk404);
+    NVWriteRAMDAC(output, NV_RAMDAC_NV10_CURSYNC, regp->nv10_cursync);
 }
 
 
@@ -331,7 +331,7 @@ nv_output_mode_set_regs(xf86OutputPtr output, DisplayModePtr mode)
 	is_fp = TRUE;
 
     if (pNv->Architecture >= NV_ARCH_10) 
-      regp->unk404 = savep->unk404 | (1<<25);
+      regp->nv10_cursync = savep->nv10_cursync | (1<<25);
 
     regp->bpp    = bpp;    /* this is not bitsPerPixel, it's 8,15,16,32 */
 
@@ -411,19 +411,19 @@ static Bool
 nv_crt_load_detect(xf86OutputPtr output)
 {
   NVOutputPrivatePtr nv_output = output->driver_private;
-  CARD32 reg52C, reg608, temp;
+  CARD32 reg_output, reg_test_ctrl, temp;
   int present = FALSE;
   
-  reg52C = NVReadRAMDAC(output, NV_RAMDAC_052C);
-  reg608 = NVReadRAMDAC(output, NV_RAMDAC_TEST_CONTROL);
+  reg_output = NVReadRAMDAC(output, NV_RAMDAC_OUTPUT);
+  reg_test_ctrl = NVReadRAMDAC(output, NV_RAMDAC_TEST_CONTROL);
 
-  NVWriteRAMDAC(output, NV_RAMDAC_TEST_CONTROL, (reg608 & ~0x00010000));
+  NVWriteRAMDAC(output, NV_RAMDAC_TEST_CONTROL, (reg_test_ctrl & ~0x00010000));
   
-  NVWriteRAMDAC(output, NV_RAMDAC_052C, (reg52C & 0x0000FEEE));
+  NVWriteRAMDAC(output, NV_RAMDAC_OUTPUT, (reg_output & 0x0000FEEE));
   usleep(1000);
   
-  temp = NVReadRAMDAC(output, NV_RAMDAC_052C);
-  NVWriteRAMDAC(output, NV_RAMDAC_052C, temp | 1);
+  temp = NVReadRAMDAC(output, NV_RAMDAC_OUTPUT);
+  NVWriteRAMDAC(output, NV_RAMDAC_OUTPUT, temp | 1);
 
   NVWriteRAMDAC(output, NV_RAMDAC_TEST_DATA, 0x94050140);
   temp = NVReadRAMDAC(output, NV_RAMDAC_TEST_CONTROL);
@@ -436,8 +436,8 @@ nv_crt_load_detect(xf86OutputPtr output)
   temp = NVReadRAMDAC(output, NV_RAMDAC_TEST_CONTROL);
   NVWriteRAMDAC(output, NV_RAMDAC_TEST_CONTROL, temp & 0x000EFFF);
   
-  NVWriteRAMDAC(output, NV_RAMDAC_052C, reg52C);
-  NVWriteRAMDAC(output, NV_RAMDAC_TEST_CONTROL, reg608);
+  NVWriteRAMDAC(output, NV_RAMDAC_OUTPUT, reg_output);
+  NVWriteRAMDAC(output, NV_RAMDAC_TEST_CONTROL, reg_test_ctrl);
   
   return present;
 
@@ -632,8 +632,7 @@ void NvSetupOutputs(ScrnInfoPtr pScrn)
       nv_output->pRAMDACReg = pNv->PRAMDAC1;
 
     NV_I2CInit(pScrn, &nv_output->pDDCBus, i ? 0x36 : 0x3e, ddc_name[i]);
-    
-    output->possible_crtcs = crtc_mask;
+    output->possible_crtcs = (1 << i);//crtc_mask;
   }
 
   if (pNv->Mobile) {

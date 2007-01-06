@@ -131,7 +131,7 @@
 #define NV_RAMDAC_CURSOR_DATA_LO    0x324
 #define NV_RAMDAC_CURSOR_DATA_HI    0x328
 
-#define NV_RAMDAC_0404              0x404
+#define NV_RAMDAC_NV10_CURSYNC      0x404
 
 #define NV_RAMDAC_NVPLL             0x500
 #define NV_RAMDAC_MPLL              0x504
@@ -146,7 +146,7 @@
 #define NV_RAMDAC_PALETTE_TEST      0x518
 #define NV_RAMDAC_VPLL2             0x520
 #define NV_RAMDAC_DITHER_NV11       0x528
-#define NV_RAMDAC_052C              0x52c
+#define NV_RAMDAC_OUTPUT            0x52c
 
 #define NV_RAMDAC_NVPLL_B           0x570
 #define NV_RAMDAC_MPLL_B            0x574
