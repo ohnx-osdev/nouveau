@@ -781,7 +781,7 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 	regp->CRTC[NV_VGA_CRTCX_INTERLACE] = 0xff;  /* interlace off */
     }
 
-    regp->CRTC[NV_VGA_CRTCX_BUFFER] = 0xfa;
+    regp->CRTC[NV_VGA_CRTCX_BUFFER] = 0xfb;
 
     /*
      * Initialize DAC palette.
@@ -826,12 +826,11 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
     regp->CRTC[NV_VGA_CRTCX_FIFO1] = savep->CRTC[NV_VGA_CRTCX_FIFO1] & ~(1<<5);
 
     if(nv_crtc->crtc) {
-       state->head  = pNv->SavedReg.head & ~0x00001000;
-       state->head2 = pNv->SavedReg.head2 | 0x00001000;
+       regp->head  = savep->head | 0x00001000;
        if (is_fp)
-		state->head2 |= NV_CRTC_FSEL_FPP1;
+		regp->head |= NV_CRTC_FSEL_FPP1;
        else
-		state->head2 &= NV_CRTC_FSEL_FPP1;
+		regp->head &= ~NV_CRTC_FSEL_FPP1;
 
        regp->crtcOwner = 3;
        state->pllsel |= 0x20000800;
@@ -840,12 +839,11 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
           state->vpllB = nvReadRAMDAC0(pNv, NV_RAMDAC_VPLL_B);
     } else {
       if(pNv->twoHeads) {
-	state->head  =  pNv->SavedReg.head | 0x00001000;
-	state->head2 =  pNv->SavedReg.head2 & ~0x00001000;
+	regp->head  =  savep->head | 0x00001000;
         if (is_fp)
-		state->head |= NV_CRTC_FSEL_FPP1;
+		regp->head |= NV_CRTC_FSEL_FPP1;
         else
-		state->head &= NV_CRTC_FSEL_FPP1;
+		regp->head &= ~NV_CRTC_FSEL_FPP1;
 
 	regp->crtcOwner = 0;
 	state->vpll2 = nvReadRAMDAC0(pNv, NV_RAMDAC_VPLL2);
@@ -1039,8 +1037,7 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 
     if(pNv->Architecture >= NV_ARCH_10) {
         if(pNv->twoHeads) {
-           nvWriteCRTC(pNv, 0, NV_CRTC_FSEL, state->head);
-           nvWriteCRTC(pNv, 1, NV_CRTC_FSEL, state->head2);
+           nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_FSEL, regp->head);
         }
         nvWriteVIDEO(pNv, NV_PVIDEO_STOP, 1);
         nvWriteVIDEO(pNv, NV_PVIDEO_INTR_EN, 0);
@@ -1050,6 +1047,7 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
         nvWriteVIDEO(pNv, NV_PVIDEO_LIMIT(1), pNv->VRAMPhysicalSize - 1);
         nvWriteMC(pNv, 0x1588, 0);
 
+	NVWriteVgaCrtc(crtc, NV_VGA_CRTCX_BUFFER, 0xff);
 	NVWriteVgaCrtc(crtc, NV_VGA_CRTCX_BUFFER, regp->CRTC[NV_VGA_CRTCX_BUFFER]);
         nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_CURSOR_CONFIG, regp->cursorConfig);
         nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_0830, regp->unk830);
@@ -1144,8 +1142,7 @@ static void nv_crtc_save_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 
     if(pNv->Architecture >= NV_ARCH_10) {
         if(pNv->twoHeads) {
-           state->head     = nvReadCRTC(pNv, 0, NV_CRTC_FSEL);
-           state->head2    = nvReadCRTC(pNv, 1, NV_CRTC_FSEL);
+           regp->head     = nvReadCRTC(pNv, nv_crtc->crtc, NV_CRTC_FSEL);
            regp->crtcOwner = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_OWNER);
         }
         regp->CRTC[NV_VGA_CRTCX_EXTRA] = NVReadVgaCrtc(crtc, NV_VGA_CRTCX_EXTRA);

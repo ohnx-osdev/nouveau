@@ -113,6 +113,7 @@ typedef struct _nv_crtc_reg
     CARD32 height;
     CARD32 unk830;
     CARD32 unk834;
+    CARD32 head;
 } NVCrtcRegRec, *NVCrtcRegPtr;
 
 typedef struct _nv_output_reg
@@ -139,8 +140,6 @@ typedef struct _riva_hw_state
     CARD32 vpllB;
     CARD32 vpll2B;
     CARD32 pllsel;
-    CARD32 head;
-    CARD32 head2;
     CARD32 config;
 
     CARD32 timingH;
