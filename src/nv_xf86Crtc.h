@@ -29,6 +29,10 @@
 typedef struct _xf86Crtc xf86CrtcRec, *xf86CrtcPtr;
 typedef struct _xf86Output xf86OutputRec, *xf86OutputPtr;
 
+#ifndef M_T_PREFERRED
+#define M_T_PREFERRED 0x8
+#endif
+
 typedef enum _xf86OutputStatus {
    XF86OutputStatusConnected,
    XF86OutputStatusDisconnected,
