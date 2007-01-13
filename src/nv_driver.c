@@ -872,6 +872,29 @@ NVAdjustFrame(int scrnIndex, int x, int y, int flags)
     }
 }
 
+void
+NVResetCrtcConfig(ScrnInfoPtr pScrn, int set)
+{
+    xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR(pScrn);  
+    NVPtr pNv = NVPTR(pScrn);
+    int i;
+    CARD32 val = 0;
+
+    for (i = 0; i < config->num_crtc; i++) {
+      xf86CrtcPtr crtc = config->crtc[i];
+      NVCrtcPrivatePtr nv_crtc = crtc->driver_private;      
+
+      if (set) {
+	NVCrtcRegPtr regp;
+
+	regp = &pNv->ModeReg.crtc_reg[nv_crtc->crtc];
+	val = regp->head;
+      }
+
+      nvWriteCRTC(pNv, nv_crtc->crtc, NV_CRTC_FSEL, val);
+    }
+}
+
 
 /*
  * This is called when VT switching back to the X server.  Its job is
@@ -900,6 +923,9 @@ NVEnterVT(int scrnIndex, int flags)
     NVInitGraphContext(pScrn);
 
     pScrn->vtSema = TRUE;
+    
+    NVResetCrtcConfig(pScrn, 0);
+
     for (i = 0; i < xf86_config->num_crtc; i++)
     {
 	xf86CrtcPtr	crtc = xf86_config->crtc[i];
@@ -914,7 +940,7 @@ NVEnterVT(int scrnIndex, int flags)
 	
 	NVCrtcSetBase(crtc, crtc->x, crtc->y);
     }
-    
+    NVResetCrtcConfig(pScrn, 1);
     pScrn->AdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
     
     if(pNv->overlayAdaptor)
