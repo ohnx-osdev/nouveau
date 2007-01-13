@@ -631,16 +631,17 @@ void NvSetupOutputs(ScrnInfoPtr pScrn)
   NVPtr pNv = NVPTR(pScrn);
   xf86OutputPtr	    output;
   NVOutputPrivatePtr    nv_output;
-  char *ddc_name[2] =  { "DDC0", "DDC1" };
+  char *ddc_name[2] =  { "OUT0", "OUT1" };
   int   crtc_mask = (1<<0) | (1<<1);
   int output_type = OUTPUT_DVI;
   int num_outputs = pNv->twoHeads ? 2 : 1;
-
+  char outputname[20];
   pNv->Television = FALSE;
 
   /* work out outputs and type of outputs here */
   for (i = 0; i<num_outputs; i++) {
-    output = xf86OutputCreate (pScrn, &nv_output_funcs, OutputType[output_type]);
+    sprintf(outputname, "OUT%d", i);
+    output = xf86OutputCreate (pScrn, &nv_output_funcs, outputname);
     if (!output)
 	return;
     nv_output = xnfcalloc (sizeof (NVOutputPrivateRec), 1);
@@ -655,7 +656,7 @@ void NvSetupOutputs(ScrnInfoPtr pScrn)
     nv_output->ramdac = i;
 
     NV_I2CInit(pScrn, &nv_output->pDDCBus, i ? 0x36 : 0x3e, ddc_name[i]);
-    output->possible_crtcs = (1 << i);//crtc_mask;
+    output->possible_crtcs = i ? 1 : crtc_mask;
   }
 
   if (pNv->Mobile) {
@@ -672,7 +673,7 @@ void NvSetupOutputs(ScrnInfoPtr pScrn)
     output->driver_private = nv_output;
     nv_output->type = output_type;
 
-    output->possible_crtcs = crtc_mask;
+    output->possible_crtcs = i ? 1 : crtc_mask;
   }
 }
 
