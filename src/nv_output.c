@@ -492,10 +492,10 @@ nv_output_detect(xf86OutputPtr output)
     if (nv_output->type == OUTPUT_DVI) {
 	if (nv_ddc_detect(output))
 	    return XF86OutputStatusConnected;
-
+#if 0
 	if (nv_crt_load_detect(output))
 	    return XF86OutputStatusConnected;
-
+#endif
 	return XF86OutputStatusDisconnected;
     }
     return XF86OutputStatusUnknown;
@@ -512,8 +512,8 @@ nv_output_get_modes(xf86OutputPtr output)
 
 
     ddc_mon = nv_xf86OutputGetEDID(output, nv_output->pDDCBus);
+    nv_xf86OutputSetEDID(output, ddc_mon);
     if (ddc_mon == NULL) {
-	nv_xf86OutputSetEDID(output, ddc_mon);
 	return NULL;
     }
 
