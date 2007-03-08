@@ -43,7 +43,6 @@
 #include <X11/extensions/render.h>
 
 #include "xf86Crtc.h"
-#include "nv_randr.h"
 #include "nv_include.h"
 
 #include "vgaHW.h"
@@ -999,13 +998,29 @@ void nv_crtc_restore(xf86CrtcPtr crtc)
 
 void nv_crtc_prepare(xf86CrtcPtr crtc)
 {
-
+    ScrnInfoPtr pScrn = crtc->scrn;
+	NVPtr pNv = NVPTR(pScrn);
+  /* Sync the engine before adjust mode */
+if (pNv->AccelInfoRec && pNv->AccelInfoRec->NeedToSync) {
+    (*pNv->AccelInfoRec->Sync)(pScrn);
+    pNv->AccelInfoRec->NeedToSync = FALSE;
+}
 
 }
 
 void nv_crtc_commit(xf86CrtcPtr crtc)
 {
 
+
+}
+
+static Bool nv_crtc_lock(xf86CrtcPtr crtc)
+{
+	return FALSE;
+}
+
+static void nv_crtc_unlock(xf86CrtcPtr crtc)
+{
 
 }
 
@@ -1018,6 +1033,8 @@ static const xf86CrtcFuncsRec nv_crtc_funcs = {
     .prepare = nv_crtc_prepare,
     .commit = nv_crtc_commit,
     .destroy = NULL, /* XXX */
+    .lock = nv_crtc_lock,
+    .unlock = nv_crtc_unlock,
 };
 
 void
@@ -1363,142 +1380,6 @@ NVCrtcFindClosestMode(xf86CrtcPtr crtc, DisplayModePtr pMode)
     }
     return pMode;
 }
-
-Bool
-NVCrtcSetMode(xf86CrtcPtr crtc, DisplayModePtr mode, Rotation rotation,
-	      int x, int y)
-{
-    ScrnInfoPtr pScrn = crtc->scrn;
-    xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
-    Bool		didLock = FALSE;
-    int i;
-    Bool ret = FALSE;
-    DisplayModePtr adjusted_mode;
-    DisplayModeRec	saved_mode;
-    int			saved_x, saved_y;
-    Rotation		saved_rotation;
-
-    adjusted_mode = xf86DuplicateMode(mode);    
-    crtc->enabled = xf86CrtcInUse(crtc);
-
-    if (!crtc->enabled) {
-	return TRUE;
-    }
-
-    saved_mode = crtc->mode;
-    saved_x = crtc->x;
-    saved_y = crtc->y;
-    saved_rotation = crtc->rotation;
-    /* Update crtc values up front so the driver can rely on them for mode
-     * setting.
-     */
-    crtc->mode = *mode;
-    crtc->x = x;
-    crtc->y = y;
-    crtc->rotation = rotation;
-
-    for (i = 0; i < xf86_config->num_output; i++) {
-	xf86OutputPtr output = xf86_config->output[i];
-
-	if (output->crtc != crtc)
-	    continue;
-
-	if (!output->funcs->mode_fixup(output, mode, adjusted_mode)) {
-	    ret = FALSE;
-	    goto done;
-	}
-    }
-
-    if (!crtc->funcs->mode_fixup(crtc, mode, adjusted_mode)) {
-	ret = FALSE;
-	goto done;
-    }
-
-    if (!xf86CrtcRotate (crtc, mode, rotation)) {
-	goto done;
-    }
-
-    NVCrtcLockUnlock(crtc, 0);
-
-        /* Disable the outputs and CRTCs before setting the mode. */
-    for (i = 0; i < xf86_config->num_output; i++) {
-	xf86OutputPtr output = xf86_config->output[i];
-
-	if (output->crtc != crtc)
-	    continue;
-
-	/* Disable the output as the first thing we do. */
-	output->funcs->dpms(output, DPMSModeOff);
-    }
-
-    crtc->funcs->dpms(crtc, DPMSModeOff);
-
-    crtc->funcs->mode_set(crtc, mode, adjusted_mode, x, y);
-    for (i = 0; i < xf86_config->num_output; i++) {
-	xf86OutputPtr output = xf86_config->output[i];
-	if (output->crtc == crtc)
-	    output->funcs->mode_set(output, mode, adjusted_mode);
-    }
-
-    /* Now, enable the clocks, plane, pipe, and outputs that we set up. */
-    crtc->funcs->dpms(crtc, DPMSModeOn);
-    for (i = 0; i < xf86_config->num_output; i++) {
-	xf86OutputPtr output = xf86_config->output[i];
-	if (output->crtc == crtc)
-	    output->funcs->dpms(output, DPMSModeOn);
-    }
-
-    /* XXX free adjustedmode */
-    ret = TRUE;
-
- done:
-
-    if (!ret) {
-	crtc->x = saved_x;
-	crtc->y = saved_y;
-	crtc->rotation = saved_rotation;
-	crtc->mode = saved_mode;
-    }
-
-    return ret;
-}
-
-/**
- * This function configures the screens in clone mode on
- * all active outputs using a mode similar to the specified mode.
- */
-Bool
-NVSetMode(ScrnInfoPtr pScrn, DisplayModePtr pMode, Rotation rotation)
-{
-    xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR(pScrn);
-    Bool ok = TRUE;
-    xf86CrtcPtr crtc = config->output[config->compat_output]->crtc;
-
-    if (crtc && crtc->enabled)
-    {
-	ok = NVCrtcSetMode(crtc,
-			   NVCrtcFindClosestMode(crtc, pMode), rotation, 0, 0);
-
-	if (!ok)
-	    goto done;
-	crtc->desiredMode = *pMode;
-    }
-
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Mode bandwidth is %d Mpixel/s\n",
-	       (int)(pMode->HDisplay * pMode->VDisplay *
-		     pMode->VRefresh / 1000000));
-
-    //    i830DisableUnusedFunctions(pScrn);
-
-    //    i8/30DescribeOutputConfiguration(pScrn);
-
-#ifdef XF86DRI
-    //   I830DRISetVBlankInterrupt (pScrn, TRUE);
-#endif
-done:
-    return ok;
-}
-
 
 void NVCrtcSetCursor(xf86CrtcPtr crtc, Bool state)
 {

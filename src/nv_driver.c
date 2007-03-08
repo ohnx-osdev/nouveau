@@ -917,25 +917,8 @@ NVEnterVT(int scrnIndex, int flags)
     pScrn->vtSema = TRUE;
     
     NVResetCrtcConfig(pScrn, 0);
-
-    for (i = 0; i < xf86_config->num_crtc; i++)
-    {
-	xf86CrtcPtr	crtc = xf86_config->crtc[i];
-	
-	/* Mark that we'll need to re-set the mode for sure */
-	memset(&crtc->mode, 0, sizeof(crtc->mode));
-	//      if (!crtc->desiredMode.CrtcHDisplay)
-	crtc->desiredMode = *NVCrtcFindClosestMode (crtc, pScrn->currentMode);
-	crtc->desiredRotation = RR_Rotate_0;
-	crtc->desiredX = 0;
-	crtc->desiredY = 0;
-	
-	if (!NVCrtcSetMode (crtc, &crtc->desiredMode, crtc->desiredRotation, 
-			    crtc->desiredX, crtc->desiredY))
-	    return FALSE;
-	
-	NVCrtcSetBase(crtc, crtc->x, crtc->y);
-    }
+    if (!xf86SetDesiredModes(pScrn));
+	return FALSE;
     NVResetCrtcConfig(pScrn, 1);
     pScrn->AdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
     
