@@ -917,7 +917,7 @@ NVEnterVT(int scrnIndex, int flags)
     pScrn->vtSema = TRUE;
     
     NVResetCrtcConfig(pScrn, 0);
-    if (!xf86SetDesiredModes(pScrn));
+    if (!xf86SetDesiredModes(pScrn))
 	return FALSE;
     NVResetCrtcConfig(pScrn, 1);
     pScrn->AdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
