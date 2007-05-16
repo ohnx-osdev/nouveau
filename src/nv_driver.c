@@ -761,6 +761,8 @@ NVProbe(DriverPtr drv, int flags)
                case CHIPSET_NV45:
                case CHIPSET_NV44A:
                case 0x0230:
+	       case CHIPSET_NV50:
+	       case CHIPSET_NV84:
                case CHIPSET_G71:
                case CHIPSET_G73:
                case CHIPSET_C512:
