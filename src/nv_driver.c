@@ -1585,14 +1585,24 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     NVCommonSetup(pScrn);
-    NVI2CInit(pScrn);
 
-    num_crtc = pNv->twoHeads ? 2 : 1;
-    for (i = 0; i < num_crtc; i++) {
-        nv_crtc_init(pScrn, i);
+    if (pNv->Architecture < NV_ARCH_50) {
+	    NVI2CInit(pScrn);
+	    
+	    num_crtc = pNv->twoHeads ? 2 : 1;
+	    for (i = 0; i < num_crtc; i++) {
+		    nv_crtc_init(pScrn, i);
+	    }
+
+	    NvSetupOutputs(pScrn);
+    } else {
+	    if (!NV50DispPreInit(pScrn))
+		    return FALSE;
+	    if (!NV50CreateOutputs(pScrn))
+		    return FALSE;
+	    NV50DispCreateCrtcs(pScrn);
     }
 
-    NvSetupOutputs(pScrn);
 
 #if 0
     /* Do an initial detection of the outputs while none are configured on yet.
