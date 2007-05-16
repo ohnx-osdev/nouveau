@@ -20,6 +20,8 @@
 #error "This driver requires a DRI-enabled X server"
 #endif
 
+#include "nv50_type.h"
+
 #define NV_ARCH_03  0x03
 #define NV_ARCH_04  0x04
 #define NV_ARCH_10  0x10
@@ -174,6 +176,7 @@ typedef struct _NVRec {
     pciVideoPtr         PciInfo;
     PCITAG              PciTag;
     int                 Chipset;
+    int			_Chipset;
     int                 ChipRev;
     Bool                Primary;
     CARD32              IOAddress;
@@ -309,6 +312,11 @@ typedef struct _NVRec {
     int analog_count;
     int digital_count;
     CARD32 dcb_table[NV40_NUM_DCB_ENTRIES]; /* 10 is a good limit */
+
+    struct {
+	    ORNum dac;
+	    ORNum sor;
+    } i2cMap[4];
 } NVRec;
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))
