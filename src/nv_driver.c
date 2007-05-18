@@ -2201,9 +2201,15 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     /* Initialize HW cursor layer. 
 	Must follow software cursor initialization*/
     if (pNv->HWCursor) { 
-	if(!NVCursorInit(pScreen))
+	if (pNv->Architecture < NV_ARCH_50)
+		ret = NVCursorInit(pScreen);
+	else
+		ret = NV50CursorInit(pScreen);
+	if (ret != TRUE) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, 
 		"Hardware cursor initialization failed\n");
+	    pNv->HWCursor = FALSE;
+	}
     }
 
     /* Initialise default colourmap */
