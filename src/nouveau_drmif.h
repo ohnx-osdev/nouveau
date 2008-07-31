@@ -128,8 +128,6 @@ struct nouveau_pushbuf_bo {
 struct nouveau_pushbuf_priv {
 	struct nouveau_pushbuf base;
 
-	struct nouveau_fence *fence;
-
 	unsigned nop_jump;
 	unsigned start;
 	unsigned size;

@@ -25,6 +25,9 @@
 
 struct nouveau_pushbuf {
 	struct nouveau_channel *channel;
+
+	struct nouveau_fence *fence;
+
 	unsigned remaining;
 	uint32_t *cur;
 };

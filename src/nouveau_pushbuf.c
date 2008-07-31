@@ -57,8 +57,8 @@ nouveau_pushbuf_space(struct nouveau_channel *chan, unsigned min)
 	nvpb->base.cur = &nvchan->pushbuf[nvpb->start];
 
 	/* Create a new fence object for this "frame" */
-	nouveau_fence_ref(NULL, &nvpb->fence);
-	nouveau_fence_new(chan, &nvpb->fence);
+	nouveau_fence_ref(NULL, &nvpb->base.fence);
+	nouveau_fence_new(chan, &nvpb->base.fence);
 
 	return 0;
 }
@@ -204,7 +204,7 @@ nouveau_pushbuf_flush(struct nouveau_channel *chan, unsigned min)
 	nvchan->dma = &nvchan->dma_master;
 
 	/* Fence + kickoff */
-	nouveau_fence_emit(nvpb->fence);
+	nouveau_fence_emit(nvpb->base.fence);
 	FIRE_RING_CH(chan);
 
 	/* Allocate space for next push buffer */
