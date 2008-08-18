@@ -25,7 +25,6 @@
 #include <assert.h>
 
 #include "nouveau_drmif.h"
-#include "nouveau_dma.h"
 #include "nouveau_local.h"
 
 static void
@@ -147,11 +146,11 @@ nouveau_fence_emit(struct nouveau_fence *fence)
 	if (nvfence->sequence == 0xffffffff)
 		NOUVEAU_ERR("AII wrap unhandled\n");
 
-	if (nvchan->base.device->chipset >= 0x10) {
+	if (0 && nvchan->base.device->chipset >= 0x10) {
 		/*XXX: assumes subc 0 is populated */
-		RING_SPACE_CH(fence->channel, 2);
-		OUT_RING_CH  (fence->channel, 0x00040050);
-		OUT_RING_CH  (fence->channel, nvfence->sequence);
+		RING_SPACE(fence->channel, 2);
+		OUT_RING  (fence->channel, 0x00040050);
+		OUT_RING  (fence->channel, nvfence->sequence);
 	}
 
 	if (nvchan->fence_tail) {
@@ -198,10 +197,12 @@ nouveau_fence_flush_seq(struct nouveau_channel *chan, unsigned sequence)
 void
 nouveau_fence_flush(struct nouveau_channel *chan)
 {
+#if 0
 	struct nouveau_channel_priv *nvchan = nouveau_channel(chan);
 
 	if (chan->device->chipset >= 0x10)
 		nouveau_fence_flush_seq(chan, *nvchan->ref_cnt);
+#endif
 }
 
 int
@@ -216,7 +217,7 @@ nouveau_fence_wait(struct nouveau_fence **fence)
 	chan = nvfence->base.channel;
 
 	if (nvfence->emitted) {
-		if (!nvfence->signalled && chan->device->chipset < 0x10) {
+		if (!nvfence->signalled /* && chan->device->chipset < 0x10*/) {
 			struct nouveau_channel_priv *nvchan =
 				nouveau_channel(chan);
 

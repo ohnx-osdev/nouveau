@@ -25,7 +25,6 @@
 #include <assert.h>
 
 #include "nouveau_drmif.h"
-#include "nouveau_dma.h"
 
 #define PB_BUFMGR_DWORDS   (4096 / 2)
 #define PB_MIN_USER_DWORDS  2048
@@ -36,25 +35,15 @@ nouveau_pushbuf_space(struct nouveau_channel *chan, unsigned min)
 	struct nouveau_channel_priv *nvchan = nouveau_channel(chan);
 	struct nouveau_pushbuf_priv *nvpb = &nvchan->pb;
 
-	assert((min + 1) <= nvchan->dma->max);
+	if (nvpb->pushbuf)
+		free(nvpb->pushbuf);
 
-	/* Wait for enough space in push buffer */
-	min = min < PB_MIN_USER_DWORDS ? PB_MIN_USER_DWORDS : min;
-	min += 1; /* a bit extra for the NOP */
-	if (nvchan->dma->free < min)
-		WAIT_RING_CH(chan, min);
+	nvpb->size = min < PB_MIN_USER_DWORDS ? PB_MIN_USER_DWORDS : min;	
+	nvpb->pushbuf = malloc(sizeof(uint32_t) * nvpb->size);
 
-	/* Insert NOP, may turn into a jump later */
-	RING_SPACE_CH(chan, 1);
-	nvpb->nop_jump = nvchan->dma->cur;
-	OUT_RING_CH(chan, 0);
-
-	/* Any remaining space is available to the user */
-	nvpb->start = nvchan->dma->cur;
-	nvpb->size = nvchan->dma->free;
 	nvpb->base.channel = chan;
 	nvpb->base.remaining = nvpb->size;
-	nvpb->base.cur = &nvchan->pushbuf[nvpb->start];
+	nvpb->base.cur = nvpb->pushbuf;
 
 	/* Create a new fence object for this "frame" */
 	nouveau_fence_ref(NULL, &nvpb->base.fence);
@@ -67,40 +56,15 @@ int
 nouveau_pushbuf_init(struct nouveau_channel *chan)
 {
 	struct nouveau_channel_priv *nvchan = nouveau_channel(chan);
-	struct nouveau_dma_priv *m = &nvchan->dma_master;
-	struct nouveau_dma_priv *b = &nvchan->dma_bufmgr;
-	int i;
-
-	if (!nvchan)
-		return -EINVAL;
-
-	/* Reassign last bit of push buffer for a "separate" bufmgr
-	 * ring buffer
-	 */
-	m->max -= PB_BUFMGR_DWORDS;
-	m->free -= PB_BUFMGR_DWORDS;
-
-	b->base = m->base + ((m->max + 2) << 2);
-	b->max = PB_BUFMGR_DWORDS - 2;
-	b->cur = b->put = 0;
-	b->free = b->max - b->cur;
-
-	/* Some NOPs just to be safe
-	 *XXX: RING_SKIPS
-	 */
-	nvchan->dma = b;
-	RING_SPACE_CH(chan, 8);
-	for (i = 0; i < 8; i++)
-		OUT_RING_CH(chan, 0);
-	nvchan->dma = m;
 
 	nouveau_pushbuf_space(chan, 0);
-	chan->pushbuf = &nvchan->pb.base;
 
 	nvchan->pb.buffers = calloc(NOUVEAU_PUSHBUF_MAX_BUFFERS,
 				    sizeof(struct nouveau_pushbuf_bo));
 	nvchan->pb.relocs = calloc(NOUVEAU_PUSHBUF_MAX_RELOCS,
 				   sizeof(struct nouveau_pushbuf_reloc));
+	
+	chan->pushbuf = &nvchan->pb.base;
 	return 0;
 }
 
@@ -134,23 +98,16 @@ nouveau_pushbuf_calc_reloc(struct nouveau_bo *bo,
 int
 nouveau_pushbuf_flush(struct nouveau_channel *chan, unsigned min)
 {
+	struct nouveau_device_priv *nvdev = nouveau_device(chan->device);
 	struct nouveau_channel_priv *nvchan = nouveau_channel(chan);
 	struct nouveau_pushbuf_priv *nvpb = &nvchan->pb;
 	int ret, i;
 
 	if (nvpb->base.remaining == nvpb->size)
 		return 0;
+	nvpb->size -= nvpb->base.remaining;
 
 	nouveau_fence_flush(chan);
-
-	nvpb->size -= nvpb->base.remaining;
-	nvchan->dma->cur += nvpb->size;
-	nvchan->dma->free -= nvpb->size;
-	assert(nvchan->dma->cur <= nvchan->dma->max);
-
-	nvchan->dma = &nvchan->dma_bufmgr;
-	nvchan->pushbuf[nvpb->nop_jump] = 0x20000000 |
-		(nvchan->dma->base + (nvchan->dma->cur << 2));
 
 	/* Validate buffers + apply relocations */
 	nvchan->user_charge = 0;
@@ -199,15 +156,19 @@ nouveau_pushbuf_flush(struct nouveau_channel *chan, unsigned min)
 	}
 	nvpb->nr_buffers = 0;
 
-	/* Switch back to user's ring */
-	RING_SPACE_CH(chan, 1);
-	OUT_RING_CH(chan, 0x20000000 | ((nvpb->start << 2) +
-					nvchan->dma_master.base));
-	nvchan->dma = &nvchan->dma_master;
-
 	/* Fence + kickoff */
 	nouveau_fence_emit(nvpb->base.fence);
-	FIRE_RING_CH(chan);
+
+	{
+		struct drm_nouveau_gem_pushbuf req;
+
+		req.channel = chan->id;
+		req.size = nvpb->size;
+		req.ptr = (uint32_t)(unsigned long)nvpb->pushbuf;
+		ret = drmCommandWrite(nvdev->fd, DRM_NOUVEAU_GEM_PUSHBUF,
+				      &req, sizeof(req));
+		assert(ret == 0);
+	}
 
 	/* Allocate space for next push buffer */
 	ret = nouveau_pushbuf_space(chan, min);

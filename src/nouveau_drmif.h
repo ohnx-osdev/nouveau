@@ -129,9 +129,8 @@ struct nouveau_pushbuf_bo {
 struct nouveau_pushbuf_priv {
 	struct nouveau_pushbuf base;
 
-	unsigned nop_jump;
-	unsigned start;
-	unsigned size;
+	unsigned *pushbuf;
+	unsigned  size;
 
 	struct nouveau_pushbuf_bo *buffers;
 	unsigned nr_buffers;
@@ -158,32 +157,12 @@ nouveau_pushbuf_emit_reloc(struct nouveau_channel *, void *ptr,
 			   struct nouveau_bo *, uint32_t data, uint32_t flags,
 			   uint32_t vor, uint32_t tor);
 
-struct nouveau_dma_priv {
-	uint32_t base;
-	uint32_t max;
-	uint32_t cur;
-	uint32_t put;
-	uint32_t free;
-
-	int push_free;
-} dma;
-
 struct nouveau_channel_priv {
 	struct nouveau_channel base;
 
 	struct drm_nouveau_channel_alloc drm;
 
-	uint32_t *pushbuf;
 	void     *notifier_block;
-
-	volatile uint32_t *user;
-	volatile uint32_t *put;
-	volatile uint32_t *get;
-	volatile uint32_t *ref_cnt;
-
-	struct nouveau_dma_priv dma_master;
-	struct nouveau_dma_priv dma_bufmgr;
-	struct nouveau_dma_priv *dma;
 
 	struct nouveau_fence *fence_head;
 	struct nouveau_fence *fence_tail;

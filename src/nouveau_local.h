@@ -97,6 +97,13 @@ OUT_RINGf(struct nouveau_channel *chan, float f)
 }
 
 static __inline__ void
+RING_SPACE(struct nouveau_channel *chan, unsigned size)
+{
+	if (chan->pushbuf->remaining < size)
+		nouveau_pushbuf_flush(chan, size);
+}
+
+static __inline__ void
 BEGIN_RING(struct nouveau_channel *chan, struct nouveau_grobj *gr,
 	   unsigned mthd, unsigned size)
 {
@@ -104,8 +111,7 @@ BEGIN_RING(struct nouveau_channel *chan, struct nouveau_grobj *gr,
 		nouveau_grobj_autobind(gr);
 	chan->subc[gr->subc].sequence = chan->subc_sequence++;
 
-	if (chan->pushbuf->remaining < (size + 1))
-		nouveau_pushbuf_flush(chan, (size + 1));
+	RING_SPACE(chan, size + 1);
 	OUT_RING(chan, (gr->subc << 13) | (size << 18) | mthd);
 	chan->pushbuf->remaining -= (size + 1);
 }

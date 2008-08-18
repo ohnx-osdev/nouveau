@@ -29,7 +29,6 @@
 #include <sys/ioctl.h>
 
 #include "nouveau_drmif.h"
-#include "nouveau_dma.h"
 #include "nouveau_local.h"
 
 static void
