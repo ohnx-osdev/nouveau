@@ -113,6 +113,8 @@ NVExaWaitMarker(ScreenPtr pScreen, int marker)
 	nouveau_fence_wait(&pNv->exa_sync);
 }
 
+static unsigned rect_colour = 0;
+
 static Bool NVExaPrepareSolid(PixmapPtr pPixmap,
 			      int   alu,
 			      Pixel planemask,
@@ -163,11 +165,7 @@ static Bool NVExaPrepareSolid(PixmapPtr pPixmap,
 	OUT_PIXMAPl(chan, pPixmap, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 	OUT_PIXMAPl(chan, pPixmap, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 
-	BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT, 1);
-	OUT_RING  (chan, NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT_A8R8G8B8);
-	BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR1_A, 1);
-	OUT_RING (chan, color);
-
+	rect_colour = color;
 	return TRUE;
 }
 
@@ -179,6 +177,14 @@ static void NVExaSolid (PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
 	struct nouveau_grobj *rect = pNv->NvRectangle;
 	int width = x2-x1;
 	int height = y2-y1;
+
+	if (chan->pushbuf->remaining < 10)
+		FIRE_RING (chan);
+
+	BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT, 1);
+	OUT_RING  (chan, NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT_A8R8G8B8);
+	BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR1_A, 1);
+	OUT_RING  (chan, rect_colour);
 
 	BEGIN_RING(chan, rect,
 		   NV04_GDI_RECTANGLE_TEXT_UNCLIPPED_RECTANGLE_POINT(0), 2);
