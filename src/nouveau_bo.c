@@ -218,17 +218,6 @@ nouveau_bo_user(struct nouveau_device *dev, void *ptr, int size,
 	return 0;
 }
 
-static void
-nouveau_bo_del_cb(void *priv)
-{
-	struct nouveau_bo_priv *nvbo = priv;
-
-	nouveau_fence_ref(NULL, &nvbo->fence);
-	nouveau_bo_ufree(nvbo);
-	nouveau_bo_kfree(nvbo);
-	free(nvbo);
-}
-
 int
 nouveau_bo_handle_get(struct nouveau_bo *bo, uint32_t *handle)
 {
@@ -302,10 +291,10 @@ nouveau_bo_del(struct nouveau_bo **bo)
 	if (nvbo->pending)
 		nouveau_pushbuf_flush(nvbo->pending_channel, 0);
 
-	if (nvbo->fence)
-		nouveau_fence_signal_cb(nvbo->fence, nouveau_bo_del_cb, nvbo);
-	else
-		nouveau_bo_del_cb(nvbo);
+	nouveau_fence_ref(NULL, &nvbo->fence);
+	nouveau_bo_ufree(nvbo);
+	nouveau_bo_kfree(nvbo);
+	free(nvbo);
 }
 
 int

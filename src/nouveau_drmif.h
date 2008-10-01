@@ -66,18 +66,11 @@ struct nouveau_fence {
 	struct nouveau_channel *channel;
 };
 
-struct nouveau_fence_cb {
-	struct nouveau_fence_cb *next;
-	void (*func)(void *);
-	void *priv;
-};
-
 struct nouveau_fence_priv {
 	struct nouveau_fence base;
 	int refcount;
 
 	struct nouveau_fence *next;
-	struct nouveau_fence_cb *signal_cb;
 
 	uint32_t sequence;
 	int emitted;
@@ -90,9 +83,6 @@ nouveau_fence_new(struct nouveau_channel *, struct nouveau_fence **);
 
 NOUVEAU_PRIVATE int
 nouveau_fence_ref(struct nouveau_fence *, struct nouveau_fence **);
-
-NOUVEAU_PRIVATE int
-nouveau_fence_signal_cb(struct nouveau_fence *, void (*)(void *), void *);
 
 NOUVEAU_PRIVATE void
 nouveau_fence_emit(struct nouveau_fence *);
