@@ -162,7 +162,9 @@ static bool NVShadowVBIOS(ScrnInfoPtr pScrn, uint8_t *data)
 		void (*loadbios)(NVPtr, uint8_t *);
 		int score;
 	} method[] = {
+#ifndef __powerpc__
 		{ "PROM", load_vbios_prom },
+#endif
 		{ "PRAMIN", load_vbios_pramin },
 #ifndef __powerpc__
 		{ "PCI ROM", load_vbios_pci }
@@ -4286,12 +4288,15 @@ parse_dcb_entry(ScrnInfoPtr pScrn, int index, uint8_t dcb_version, uint16_t i2ct
 		read_dcb_i2c_entry(pScrn, dcb_version, i2ctabptr, entry->i2c_index);
 	} else if (dcb_version >= 0x14 ) {
 		if (conn != 0xf0003f00 && conn != 0xf2247f10 &&
-		    conn != 0xf2204001 && conn != 0xf2204301 && conn != 0xf2204311 && conn != 0xf2208001 && conn != 0xf2244001 && conn != 0xf2244311 && conn != 0xf4204011 && conn != 0xf4208011 && conn != 0xf4248011 &&
+		    conn != 0xf2204001 && conn != 0xf2204301 && conn != 0xf2204311 && conn != 0xf2208001 && conn != 0xf2244001 && conn != 0xf2244301 && conn != 0xf2244311 && conn != 0xf4204011 && conn != 0xf4208011 && conn != 0xf4248011 &&
 		    conn != 0xf2045f14 && conn != 0xf2205004) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				   "Unknown DCB 1.4 / 1.5 entry, please report\n");
-			/* cause output setting to fail, so message is seen */
-			pNv->dcb_table.entries = 0;
+
+			/* cause output setting to fail for non-TVs, so message is seen */
+			if ((conn & 0xf) != 0x1)
+				pNv->dcb_table.entries = 0;
+
 			return false;
 		}
 		/* most of the below is a "best guess" atm */
@@ -4320,7 +4325,10 @@ parse_dcb_entry(ScrnInfoPtr pScrn, int index, uint8_t dcb_version, uint16_t i2ct
 			/* invent a DVI-A output, by copying the fields of the DVI-D output
 			 * reported to work by math_b on an NV20(!) */
 			memcpy(&entry[1], &entry[0], sizeof(struct dcb_entry));
+			entry[1].index = ++index;
 			entry[1].type = OUTPUT_ANALOG;
+			ErrorF("Concocting additional DCB entry for analogue "
+			       "encoder on DVI output\n");
 			pNv->dcb_table.entries++;
 		}
 		read_dcb_i2c_entry(pScrn, dcb_version, i2ctabptr, entry->i2c_index);
@@ -4482,7 +4490,8 @@ static unsigned int parse_dcb_table(ScrnInfoPtr pScrn, bios_t *bios)
 		if (connection == 0x00000000) /* seen on an NV11 with DCB v1.5 */
 			break;
 
-		ErrorF("Raw DCB entry %d: %08x %08x\n", i, connection, config);
+		ErrorF("Raw DCB entry %d: %08x %08x\n",
+		       pNv->dcb_table.entries, connection, config);
 		if (!parse_dcb_entry(pScrn, pNv->dcb_table.entries, dcb_version, i2ctabptr, connection, config))
 			break;
 	}
