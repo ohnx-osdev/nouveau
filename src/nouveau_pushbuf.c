@@ -153,6 +153,7 @@ nouveau_pushbuf_emit_reloc(struct nouveau_channel *chan, void *ptr,
 	pbbo->valid_domains &= domains;
 	assert(pbbo->valid_domains);
 
+	assert(flags & NOUVEAU_BO_RDWR);
 	if (flags & NOUVEAU_BO_RD) 
 		pbbo->read_domains |= domains;
 	if (flags & NOUVEAU_BO_WR)
