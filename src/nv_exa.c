@@ -683,15 +683,12 @@ NVExaPrepareAccess(PixmapPtr pPix, int index)
 	if (!nvpix || !nvpix->bo)
 		return FALSE;
 
-	/*XXX: ho hum.. sync if needed */
+	if (!nvpix->bo->map) {
+		if (nouveau_bo_map(nvpix->bo, NOUVEAU_BO_RDWR))
+			return FALSE;
+	}
 
-	if (nvpix->mapped)
-		return TRUE;
-
-	if (nouveau_bo_map(nvpix->bo, NOUVEAU_BO_RDWR))
-		return FALSE;
 	pPix->devPrivate.ptr = nvpix->bo->map;
-	nvpix->mapped = TRUE;
 	return TRUE;
 }
 
@@ -704,12 +701,11 @@ NVExaFinishAccess(PixmapPtr pPix, int index)
 	(void)pNv;
 
 	nvpix = exaGetPixmapDriverPrivate(pPix);
-	if (!nvpix || !nvpix->bo || !nvpix->mapped)
+	if (!nvpix || !nvpix->bo)
 		return;
 
 	nouveau_bo_unmap(nvpix->bo);
 	pPix->devPrivate.ptr = NULL;
-	nvpix->mapped = FALSE;
 }
 
 static Bool

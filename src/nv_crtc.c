@@ -1186,7 +1186,6 @@ nv_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "No initial shadow private available for rotation.\n");
 	} else {
 		nvpix->bo = nv_crtc->shadow;
-		nvpix->mapped = TRUE;
 	}
 
 	/* Modify the pixmap to actually be the one we need. */

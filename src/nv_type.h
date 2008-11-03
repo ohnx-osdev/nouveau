@@ -357,7 +357,6 @@ enum LVDS_script {
 
 struct nouveau_pixmap {
 	struct nouveau_bo *bo;
-	int mapped;
 };
 
 static inline struct nouveau_pixmap *
