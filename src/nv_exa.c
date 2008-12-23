@@ -337,7 +337,10 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 		OUT_RING  (chan, (1<<8)|1);
 		OUT_RING  (chan, 0);
 
-		nouveau_bo_map(pNv->GART, NOUVEAU_BO_RD);
+		if (nouveau_bo_map(pNv->GART, NOUVEAU_BO_RD)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "DFS: GART map failed. \n");
+			return FALSE;
+		}
 		if (dst_pitch == line_len) {
 			memcpy(dst, pNv->GART->map, dst_pitch * line_count);
 			dst += dst_pitch * line_count;
@@ -567,7 +570,10 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 			line_count = 2047;
 
 		/* Upload to GART */
-		nouveau_bo_map(pNv->GART, NOUVEAU_BO_WR);
+		if (nouveau_bo_map(pNv->GART, NOUVEAU_BO_WR)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "UTS: GART map failed.\n");
+			return FALSE;
+		}
 		if (src_pitch == line_len) {
 			memcpy(pNv->GART->map, src, src_pitch * line_count);
 			src += src_pitch * line_count;
