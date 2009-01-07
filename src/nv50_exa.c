@@ -449,11 +449,21 @@ NV50EXATexture(PixmapPtr ppix, PicturePtr ppict, unsigned unit)
 {
 	NV50EXA_LOCALS(ppix);
 	struct nouveau_pixmap *tex = nouveau_pixmap(ppix);
+	const unsigned tic_tsc_flags = NOUVEAU_BO_RD | NOUVEAU_BO_VRAM;
+	const unsigned cb_flags = NOUVEAU_BO_WR | NOUVEAU_BO_VRAM;
 
 	/*XXX: Scanout buffer not tiled, someone needs to figure it out */
 	if (!tex->bo->tiled)
 		NOUVEAU_FALLBACK("pixmap is scanout buffer\n");
 
+	BEGIN_RING(chan, tesla, NV50TCL_TIC_ADDRESS_HIGH, 3);
+	OUT_RELOCh(chan, pNv->tesla_scratch, TIC_OFFSET, tic_tsc_flags);
+	OUT_RELOCl(chan, pNv->tesla_scratch, TIC_OFFSET, tic_tsc_flags);
+	OUT_RING  (chan, 0x00000800);
+	BEGIN_RING(chan, tesla, NV50TCL_CB_DEF_ADDRESS_HIGH, 3);
+	OUT_RELOCh(chan, pNv->tesla_scratch, TIC_OFFSET, cb_flags);
+	OUT_RELOCl(chan, pNv->tesla_scratch, TIC_OFFSET, cb_flags);
+	OUT_RING  (chan, (CB_TIC << NV50TCL_CB_DEF_SET_BUFFER_SHIFT) | 0x4000);
 	BEGIN_RING(chan, tesla, NV50TCL_CB_ADDR, 1);
 	OUT_RING  (chan, CB_TIC | ((unit * 8) << NV50TCL_CB_ADDR_ID_SHIFT));
 	BEGIN_RING(chan, tesla, NV50TCL_CB_DATA(0) | 0x40000000, 8);
@@ -511,6 +521,14 @@ NV50EXATexture(PixmapPtr ppix, PicturePtr ppict, unsigned unit)
 	OUT_RING  (chan, 0x03000000);
 	OUT_RELOCh(chan, tex->bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
 
+	BEGIN_RING(chan, tesla, NV50TCL_TSC_ADDRESS_HIGH, 3);
+	OUT_RELOCh(chan, pNv->tesla_scratch, TSC_OFFSET, tic_tsc_flags);
+	OUT_RELOCl(chan, pNv->tesla_scratch, TSC_OFFSET, tic_tsc_flags);
+	OUT_RING  (chan, 0x00000000);
+	BEGIN_RING(chan, tesla, NV50TCL_CB_DEF_ADDRESS_HIGH, 3);
+	OUT_RELOCh(chan, pNv->tesla_scratch, TSC_OFFSET, cb_flags);
+	OUT_RELOCl(chan, pNv->tesla_scratch, TSC_OFFSET, cb_flags);
+	OUT_RING  (chan, (CB_TSC << NV50TCL_CB_DEF_SET_BUFFER_SHIFT) | 0x4000);
 	BEGIN_RING(chan, tesla, NV50TCL_CB_ADDR, 1);
 	OUT_RING  (chan, CB_TSC | ((unit * 8) << NV50TCL_CB_ADDR_ID_SHIFT));
 	BEGIN_RING(chan, tesla, NV50TCL_CB_DATA(0) | 0x40000000, 8);
@@ -645,13 +663,28 @@ NV50EXACheckComposite(int op,
 	return TRUE;
 }
 
+static void
+NV50EXAState3DReEmit(struct nouveau_channel *chan)
+{
+	NVPtr pNv = chan->user_private;
+
+	NV50EXAPrepareComposite(pNv->composite_op, pNv->src_picture,
+				pNv->mask_picture, pNv->dst_picture,
+				pNv->src_pixmap, pNv->mask_pixmap,
+				pNv->dst_pixmap);
+}
+
 Bool
 NV50EXAPrepareComposite(int op,
 			PicturePtr pspict, PicturePtr pmpict, PicturePtr pdpict,
 			PixmapPtr pspix, PixmapPtr pmpix, PixmapPtr pdpix)
 {
 	NV50EXA_LOCALS(pspix);
+	const unsigned shd_flags = NOUVEAU_BO_VRAM | NOUVEAU_BO_RD;
 
+	/* Make sure there's enough room for 3D state setup, and to
+	 * at least fit one Composite() call.
+	 */
 	RING_SPACE(chan, 100);
 
 	BEGIN_RING(chan, eng2d, 0x0110, 1);
@@ -662,6 +695,13 @@ NV50EXAPrepareComposite(int op,
 
 	NV50EXABlend(pdpix, pdpict, op, pmpict && pmpict->componentAlpha &&
 		     PICT_FORMAT_RGB(pmpict->format));
+
+	BEGIN_RING(chan, tesla, NV50TCL_VP_ADDRESS_HIGH, 2);
+	OUT_RELOCh(chan, pNv->tesla_scratch, PVP_OFFSET, shd_flags);
+	OUT_RELOCl(chan, pNv->tesla_scratch, PVP_OFFSET, shd_flags);
+	BEGIN_RING(chan, tesla, NV50TCL_FP_ADDRESS_HIGH, 2);
+	OUT_RELOCh(chan, pNv->tesla_scratch, PFP_OFFSET, shd_flags);
+	OUT_RELOCl(chan, pNv->tesla_scratch, PFP_OFFSET, shd_flags);
 
 	if (pmpict) {
 		if (!NV50EXATexture(pspix, pspict, 0))
@@ -704,6 +744,14 @@ NV50EXAPrepareComposite(int op,
 	BEGIN_RING(chan, tesla, 0x1458, 1);
 	OUT_RING  (chan, 0x203);
 
+	chan->flush_notify = NV50EXAState3DReEmit;
+	pNv->composite_op = op;
+	pNv->src_pixmap = pspix;
+	pNv->mask_pixmap = pmpix;
+	pNv->dst_pixmap = pdpix;
+	pNv->src_picture = pspict;
+	pNv->mask_picture = pmpict;
+	pNv->dst_picture = pdpict;
 	return TRUE;
 }
 
@@ -735,6 +783,8 @@ NV50EXAComposite(PixmapPtr pdpix, int sx, int sy, int mx, int my,
 	NV50EXA_LOCALS(pdpix);
 	float sX0, sX1, sX2, sX3, sY0, sY1, sY2, sY3;
 	unsigned dX0 = dx, dX1 = dx + w, dY0 = dy, dY1 = dy + h;
+
+	RING_SPACE(chan, 6 + 7*4);
 
 	NV50EXATransform(state->unit[0].transform, sx, sy,
 			 state->unit[0].width, state->unit[0].height,
@@ -788,5 +838,6 @@ NV50EXADoneComposite(PixmapPtr pdpix)
 {
 	NV50EXA_LOCALS(pdpix);
 
+	chan->flush_notify = NULL;
 }
 

@@ -528,6 +528,14 @@ typedef struct _NVRec {
 	struct nouveau_bo *tesla_scratch;
 	struct nouveau_bo *shader_mem;
 	struct nouveau_bo *xv_filtertable_mem;
+
+	int composite_op;
+	PixmapPtr src_pixmap;
+	PixmapPtr mask_pixmap;
+	PixmapPtr dst_pixmap;
+	PicturePtr src_picture;
+	PicturePtr mask_picture;
+	PicturePtr dst_picture;
 } NVRec;
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))
