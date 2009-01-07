@@ -652,6 +652,8 @@ NV50EXAPrepareComposite(int op,
 {
 	NV50EXA_LOCALS(pspix);
 
+	RING_SPACE(chan, 100);
+
 	BEGIN_RING(chan, eng2d, 0x0110, 1);
 	OUT_RING  (chan, 0);
 
