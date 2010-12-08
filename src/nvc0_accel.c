@@ -211,10 +211,6 @@ NVAccelInitNVC0TCL(ScrnInfoPtr pScrn)
 	OUT_RELOCl(chan, bo, MISC_OFST, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RING  (chan, 1);
 
-	BEGIN_RING(chan, NvSub3D, 0x3420, 2);
-	OUT_RING  (chan, (bo->offset + CB_OFFSET) >> 8);
-	OUT_RING  (chan, 16384);
-
 	FIRE_RING (chan);
 
 	BEGIN_RING(chan, NvSub3D, NVC0TCL_CODE_ADDRESS_HIGH, 2);
