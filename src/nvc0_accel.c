@@ -38,13 +38,6 @@ NVAccelInitM2MF_NVC0(ScrnInfoPtr pScrn)
 	if (ret)
 		return FALSE;
 
-	BEGIN_RING(chan, NvSubM2MF, 0x0000, 1);
-	OUT_RING  (chan, 0x9039);
-
-	/* XXX: Stupid interface, I want the notifier address ! */
-
-	FIRE_RING (chan);
-
 	return TRUE;
 }
 
@@ -61,31 +54,28 @@ NVAccelInit2D_NVC0(ScrnInfoPtr pScrn)
 	if (ret)
 		return FALSE;
 
-	BEGIN_RING(chan, NvSub2D, 0x0000, 1);
-	OUT_RING  (chan, 0x902d);
-
-	BEGIN_RING(chan, NvSub2D, NV50_2D_CLIP_ENABLE, 1);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_CLIP_ENABLE, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSub2D, NV50_2D_COLOR_KEY_ENABLE, 1);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_COLOR_KEY_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub2D, 0x0884, 1);
+	BEGIN_RING(chan, pNv->Nv2D, 0x0884, 1);
 	OUT_RING  (chan, 0x3f);
-	BEGIN_RING(chan, NvSub2D, 0x0888, 1);
+	BEGIN_RING(chan, pNv->Nv2D, 0x0888, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSub2D, NV50_2D_ROP, 1);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_ROP, 1);
 	OUT_RING  (chan, 0x55);
-	BEGIN_RING(chan, NvSub2D, NV50_2D_OPERATION, 1);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_OPERATION, 1);
 	OUT_RING  (chan, NV50_2D_OPERATION_SRCCOPY);
 
-	BEGIN_RING(chan, NvSub2D, NV50_2D_BLIT_DU_DX_FRACT, 4);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_BLIT_DU_DX_FRACT, 4);
 	OUT_RING  (chan, 0);
 	OUT_RING  (chan, 1);
 	OUT_RING  (chan, 0);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSub2D, NV50_2D_DRAW_SHAPE, 2);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_DRAW_SHAPE, 2);
 	OUT_RING  (chan, 4);
 	OUT_RING  (chan, NV50_SURFACE_FORMAT_R5G6B5_UNORM);
-	BEGIN_RING(chan, NvSub2D, NV50_2D_PATTERN_FORMAT, 2);
+	BEGIN_RING(chan, pNv->Nv2D, NV50_2D_PATTERN_FORMAT, 2);
 	OUT_RING  (chan, 2);
 	OUT_RING  (chan, 1);
 
@@ -100,7 +90,8 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
-	struct nouveau_bo *bo = pNv->tesla_scratch;
+	struct nouveau_grobj *fermi, *m2mf;
+	struct nouveau_bo *bo;
 	uint32_t tclClass;
 	int ret, i;
 
@@ -126,109 +117,108 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 		}
 	}
 	bo = pNv->tesla_scratch;
+	m2mf = pNv->NvMemFormat;
+	fermi = pNv->Nv3D;
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "init NVC0_3D (%x)\n", tclClass);
 
 	if (MARK_RING(chan, 512, 32))
 		return FALSE;
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_NOTIFY_ADDRESS_HIGH, 3);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_NOTIFY_ADDRESS_HIGH, 3);
 	OUT_RELOCh(chan, bo, NTFY_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RELOCl(chan, bo, NTFY_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RING  (chan, 0);
 
-	BEGIN_RING(chan, NvSub3D, 0x0000, 1);
-	OUT_RING  (chan, tclClass);
-
-	BEGIN_RING(chan, NvSub3D, NVC0_GRAPH_NOTIFY_ADDRESS_HIGH, 3);
+	BEGIN_RING(chan, fermi, NVC0_GRAPH_NOTIFY_ADDRESS_HIGH, 3);
 	OUT_RELOCh(chan, bo, NTFY_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RELOCl(chan, bo, NTFY_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RING  (chan, 0);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_MULTISAMPLE_COLOR_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_MULTISAMPLE_COLOR_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_MULTISAMPLE_ZETA_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_MULTISAMPLE_ZETA_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_MULTISAMPLE_MODE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_MULTISAMPLE_MODE, 1);
 	OUT_RING  (chan, NVC0_3D_MULTISAMPLE_MODE_1X);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_COND_MODE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_COND_MODE, 1);
 	OUT_RING  (chan, NVC0_3D_COND_MODE_ALWAYS);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_RT_CONTROL, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_RT_CONTROL, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_ZETA_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_ZETA_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VIEWPORT_CLIP_RECTS_EN, 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_VIEWPORT_CLIP_RECTS_EN, 2);
 	OUT_RING  (chan, 0);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_CLIPID_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_CLIPID_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VERTEX_TWO_SIDE_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_VERTEX_TWO_SIDE_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, 0x0fac, 1);
+	BEGIN_RING(chan, fermi, 0x0fac, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_COLOR_MASK(0), 8);
+	BEGIN_RING(chan, fermi, NVC0_3D_COLOR_MASK(0), 8);
 	OUT_RING  (chan, 0x1111);
 	for (i = 1; i < 8; ++i)
 		OUT_RING(chan, 0);
 
 	FIRE_RING (chan);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SCREEN_SCISSOR_HORIZ, 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_SCREEN_SCISSOR_HORIZ, 2);
 	OUT_RING  (chan, (8192 << 16) | 0);
 	OUT_RING  (chan, (8192 << 16) | 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_Y_ORIGIN_BOTTOM, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_Y_ORIGIN_BOTTOM, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_WINDOW_OFFSET_X, 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_WINDOW_OFFSET_X, 2);
 	OUT_RING  (chan, 0);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, 0x1590, 1);
+	BEGIN_RING(chan, fermi, 0x1590, 1);
 	OUT_RING  (chan, 0);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_LINKED_TSC, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_LINKED_TSC, 1);
 	OUT_RING  (chan, 1);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VIEWPORT_TRANSFORM_EN, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_VIEWPORT_TRANSFORM_EN, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VIEW_VOLUME_CLIP_CTRL, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_VIEW_VOLUME_CLIP_CTRL, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_DEPTH_RANGE_NEAR(0), 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_DEPTH_RANGE_NEAR(0), 2);
 	OUT_RINGf (chan, 0.0f);
 	OUT_RINGf (chan, 1.0f);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_TEX_LIMITS(4), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_TEX_LIMITS(4), 1);
 	OUT_RING  (chan, 0x54);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_BLEND_ENABLE(0), 8);
+	BEGIN_RING(chan, fermi, NVC0_3D_BLEND_ENABLE(0), 8);
 	OUT_RING  (chan, 1);
 	for (i = 1; i < 8; ++i)
 		OUT_RING(chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_BLEND_INDEPENDENT, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_BLEND_INDEPENDENT, 1);
 	OUT_RING  (chan, 0);
 
-	BEGIN_RING(chan, NvSub3D, 0x17bc, 3);
+	BEGIN_RING(chan, fermi, 0x17bc, 3);
 	OUT_RELOCh(chan, bo, MISC_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RELOCl(chan, bo, MISC_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RDWR);
 	OUT_RING  (chan, 1);
 
 	FIRE_RING (chan);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_CODE_ADDRESS_HIGH, 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_CODE_ADDRESS_HIGH, 2);
 	OUT_RELOCh(chan, bo, CODE_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
 	OUT_RELOCl(chan, bo, CODE_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PVP_PASS, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PVP_PASS, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 7 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 7 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 7 * 2 + 20);
 	OUT_RING  (chan, 0x00020461);
 	OUT_RING  (chan, 0);
 	OUT_RING  (chan, 0);
@@ -264,30 +254,30 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000); /* exit */
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_SELECT(1), 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_SELECT(1), 2);
 	OUT_RING  (chan, 0x11);
 	OUT_RING  (chan, PVP_PASS);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_GPR_ALLOC(1), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_GPR_ALLOC(1), 1);
 	OUT_RING  (chan, 8);
-	BEGIN_RING(chan, NvSub3D, 0x163c, 1);
+	BEGIN_RING(chan, fermi, 0x163c, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, 0x2600, 1);
+	BEGIN_RING(chan, fermi, 0x2600, 1);
 	OUT_RING  (chan, 1);
 
 	FIRE_RING (chan); usleep(500);
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_S, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_S, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 6 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 6 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 6 * 2 + 20);
 	OUT_RING  (chan, 0x00021462);
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -321,18 +311,18 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000); /* exit */
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_C, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_C, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 13 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 13 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 13 * 2 + 20);
 	OUT_RING  (chan, 0x00021462);
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -380,18 +370,18 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000); /* exit */
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_CCA, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_CCA, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 13 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 13 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 13 * 2 + 20);
 	OUT_RING  (chan, 0x00021462); /* 0x0000c000 = USES_KIL, MULTI_COLORS */
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -439,18 +429,18 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000); /* exit */
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_CCASA, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_CCASA, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 13 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 13 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 13 * 2 + 20);
 	OUT_RING  (chan, 0x00021462);
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -498,18 +488,18 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000); /* exit */
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_S_A8, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_S_A8, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 9 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 9 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 9 * 2 + 20);
 	OUT_RING  (chan, 0x00021462);
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -549,18 +539,18 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000); /* exit */
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_C_A8, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_C_A8, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 13 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 13 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 13 * 2 + 20);
 	OUT_RING  (chan, 0x00021462);
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -610,18 +600,18 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 
 	FIRE_RING (chan);
 
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_OFFSET_OUT_HIGH, 2);
 	if (OUT_RELOCh(chan, bo, PFP_NV12, NOUVEAU_BO(VRAM, VRAM, WR)) ||
 	    OUT_RELOCl(chan, bo, PFP_NV12, NOUVEAU_BO(VRAM, VRAM, WR))) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_LINE_LENGTH_IN, 2);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_LINE_LENGTH_IN, 2);
 	OUT_RING  (chan, 19 * 8 + 20 * 4);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSubM2MF, NVC0_M2MF_EXEC, 1);
+	BEGIN_RING(chan, m2mf, NVC0_M2MF_EXEC, 1);
 	OUT_RING  (chan, 0x100111);
-	BEGIN_RING_NI(chan, NvSubM2MF, NVC0_M2MF_DATA, 19 * 2 + 20);
+	BEGIN_RING_NI(chan, m2mf, NVC0_M2MF_DATA, 19 * 2 + 20);
 	OUT_RING  (chan, 0x00021462);
 	OUT_RING  (chan, 0x00000000);
 	OUT_RING  (chan, 0x00000000);
@@ -681,66 +671,66 @@ NVAccelInit3D_NVC0(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x00001de7);
 	OUT_RING  (chan, 0x80000000);
 
-	BEGIN_RING(chan, NvSub3D, 0x021c, 1); /* CODE_FLUSH ? */
+	BEGIN_RING(chan, fermi, 0x021c, 1); /* CODE_FLUSH ? */
 	OUT_RING  (chan, 0x1111);
 
 	FIRE_RING (chan);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_SELECT(5), 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_SELECT(5), 2);
 	OUT_RING  (chan, 0x51);
 	OUT_RING  (chan, PFP_S);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_GPR_ALLOC(5), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_GPR_ALLOC(5), 1);
 	OUT_RING  (chan, 8);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_CB_SIZE, 3);
+	BEGIN_RING(chan, fermi, NVC0_3D_CB_SIZE, 3);
 	OUT_RING  (chan, 256);
 	if (OUT_RELOCh(chan, bo, CB_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR) ||
 	    OUT_RELOCl(chan, bo, CB_OFFSET, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
 		MARK_UNDO(chan);
 		return FALSE;
 	}
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_CB_BIND(4), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_CB_BIND(4), 1);
 	OUT_RING  (chan, 0x01);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_EARLY_FRAGMENT_TESTS, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_EARLY_FRAGMENT_TESTS, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, 0x0360, 2);
+	BEGIN_RING(chan, fermi, 0x0360, 2);
 	OUT_RING  (chan, 0x20164010);
 	OUT_RING  (chan, 0x20);
-	BEGIN_RING(chan, NvSub3D, 0x196c, 1);
+	BEGIN_RING(chan, fermi, 0x196c, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, 0x1664, 1);
+	BEGIN_RING(chan, fermi, 0x1664, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_FRAG_COLOR_CLAMP_EN, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_FRAG_COLOR_CLAMP_EN, 1);
 	OUT_RING  (chan, 0x11111111);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_DEPTH_TEST_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_DEPTH_TEST_ENABLE, 1);
 	OUT_RING  (chan, 0);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_RASTERIZE_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_RASTERIZE_ENABLE, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_SELECT(4), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_SELECT(4), 1);
 	OUT_RING  (chan, 0x40);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_GP_BUILTIN_RESULT_EN, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_GP_BUILTIN_RESULT_EN, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_SELECT(3), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_SELECT(3), 1);
 	OUT_RING  (chan, 0x30);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_SELECT(2), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_SELECT(2), 1);
 	OUT_RING  (chan, 0x20);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SP_SELECT(0), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SP_SELECT(0), 1);
 	OUT_RING  (chan, 0x00);
 
-	BEGIN_RING(chan, NvSub3D, 0x1604, 1);
+	BEGIN_RING(chan, fermi, 0x1604, 1);
 	OUT_RING  (chan, 4);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_POINT_SPRITE_ENABLE, 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_POINT_SPRITE_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SCISSOR_ENABLE(0), 1);
+	BEGIN_RING(chan, fermi, NVC0_3D_SCISSOR_ENABLE(0), 1);
 	OUT_RING  (chan, 1);
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VIEWPORT_HORIZ(0), 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_VIEWPORT_HORIZ(0), 2);
 	OUT_RING  (chan, (8192 << 16) | 0);
 	OUT_RING  (chan, (8192 << 16) | 0);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_SCISSOR_HORIZ(0), 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_SCISSOR_HORIZ(0), 2);
 	OUT_RING  (chan, (8192 << 16) | 0);
 	OUT_RING  (chan, (8192 << 16) | 0);
 

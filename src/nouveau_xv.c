@@ -1112,7 +1112,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 		nouveau_bo_unmap(destination_buffer);
 
 		if (pNv->Architecture >= NV_ARCH_C0) {
-			nvc0_xv_m2mf(chan, pPriv->video_mem, uv_offset, dstPitch,
+			nvc0_xv_m2mf(m2mf, pPriv->video_mem, uv_offset, dstPitch,
 				     nlines, destination_buffer, line_len);
 			goto put_image;
 		}

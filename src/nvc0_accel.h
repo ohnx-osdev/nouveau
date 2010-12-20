@@ -1,8 +1,7 @@
 #ifndef __NVC0_ACCEL_H__
 #define __NVC0_ACCEL_H__
 
-#define BEGIN_RING(c, g, m, s) BEGIN_RING_NVC0(c, g, m, s)
-#define BEGIN_RING_NI(c, g, m, s) BEGIN_RING_NI_NVC0(c, g, m, s)
+#include "nvc0_pushbuf.h"
 
 /* scratch buffer offsets */
 #define CODE_OFFSET 0x00000 /* Code */
@@ -36,17 +35,18 @@ static __inline__ void
 VTX1s(NVPtr pNv, float sx, float sy, unsigned dx, unsigned dy)
 {
 	struct nouveau_channel *chan = pNv->chan;
+	struct nouveau_grobj *fermi = pNv->Nv3D;
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 3);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 3);
 	OUT_RING  (chan, VTX_ATTR(1, 2, FLOAT, 4));
 	OUT_RINGf (chan, sx);
 	OUT_RINGf (chan, sy);
 #if 1
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 2);
 	OUT_RING  (chan, VTX_ATTR(0, 2, USCALED, 2));
 	OUT_RING  (chan, (dy << 16) | dx);
 #else
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 3);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 3);
 	OUT_RING  (chan, VTX_ATTR(0, 2, FLOAT, 4));
 	OUT_RINGf (chan, (float)dx);
 	OUT_RINGf (chan, (float)dy);
@@ -58,21 +58,22 @@ VTX2s(NVPtr pNv, float s1x, float s1y, float s2x, float s2y,
       unsigned dx, unsigned dy)
 {
 	struct nouveau_channel *chan = pNv->chan;
+	struct nouveau_grobj *fermi = pNv->Nv3D;
 
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 3);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 3);
 	OUT_RING  (chan, VTX_ATTR(1, 2, FLOAT, 4));
 	OUT_RINGf (chan, s1x);
 	OUT_RINGf (chan, s1y);
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 3);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 3);
 	OUT_RING  (chan, VTX_ATTR(2, 2, FLOAT, 4));
 	OUT_RINGf (chan, s2x);
 	OUT_RINGf (chan, s2y);
 #if 1
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 2);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 2);
 	OUT_RING  (chan, VTX_ATTR(0, 2, USCALED, 2));
 	OUT_RING  (chan, (dy << 16) | dx);
 #else
-	BEGIN_RING(chan, NvSub3D, NVC0_3D_VTX_ATTR_DEFINE, 3);
+	BEGIN_RING(chan, fermi, NVC0_3D_VTX_ATTR_DEFINE, 3);
 	OUT_RING  (chan, VTX_ATTR(0, 2, FLOAT, 4));
 	OUT_RINGf (chan, (float)dx);
 	OUT_RINGf (chan, (float)dy);

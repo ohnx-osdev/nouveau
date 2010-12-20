@@ -190,7 +190,7 @@ int nvc0_xv_image_put(ScrnInfoPtr, struct nouveau_bo *, int, int, int, int,
 		      BoxPtr, int, int, int, int, uint16_t, uint16_t,
 		      uint16_t, uint16_t, uint16_t, uint16_t,
 		      RegionPtr, PixmapPtr, NVPortPrivPtr);
-void nvc0_xv_m2mf(struct nouveau_channel *, struct nouveau_bo *, int, int, int,
+void nvc0_xv_m2mf(struct nouveau_grobj *, struct nouveau_bo *, int, int, int,
 		  struct nouveau_bo *, int);
 void nvc0_xv_csc_update(NVPtr, float, float *, float *, float *);
 
