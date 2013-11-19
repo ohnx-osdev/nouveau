@@ -389,12 +389,14 @@ nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
 	}
 }
 
-void
-drmmode_flip_handler(int fd, unsigned int frame, unsigned int tv_sec,
-		     unsigned int tv_usec, void *event_data)
+static void
+drmmode_flip_handler(void *priv, uint64_t name, uint64_t ust, uint32_t msc)
 {
-	drmmode_flipevtcarrier_ptr flipcarrier = event_data;
+	drmmode_flipevtcarrier_ptr flipcarrier = priv;
 	drmmode_flipdata_ptr flipdata = flipcarrier->flipdata;
+	const unsigned int tv_sec  = ust / 1000000;
+	const unsigned int tv_usec = ust % 1000000;
+	const unsigned int frame = msc;
 
 	/* Is this the event whose info shall be delivered to higher level? */
 	if (flipcarrier->dispatch_me) {
@@ -403,7 +405,6 @@ drmmode_flip_handler(int fd, unsigned int frame, unsigned int tv_sec,
 		flipdata->fe_tv_sec = tv_sec;
 		flipdata->fe_tv_usec = tv_usec;
 	}
-	free(flipcarrier);
 
 	/* Last crtc completed flip? */
 	flipdata->flip_count--;
@@ -461,13 +462,15 @@ drmmode_page_flip(DrawablePtr draw, PixmapPtr back,
 
 	for (i = 0; i < config->num_crtc; i++) {
 		int head = drmmode_head(config->crtc[i]);
+		void *token;
 
 		if (!config->crtc[i]->enabled)
 			continue;
 
 		flipdata->flip_count++;
 
-		flipcarrier = calloc(1, sizeof(drmmode_flipevtcarrier_rec));
+		flipcarrier = drmmode_event_queue(scrn, 0, sizeof(*flipcarrier),
+						  drmmode_flip_handler, &token);
 		if (!flipcarrier) {
 			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 				   "flip queue: carrier alloc failed.\n");
@@ -483,12 +486,11 @@ drmmode_page_flip(DrawablePtr draw, PixmapPtr back,
 		flipcarrier->flipdata = flipdata;
 
 		ret = drmModePageFlip(pNv->dev->fd, head, next_fb,
-				      DRM_MODE_PAGE_FLIP_EVENT, flipcarrier);
+				      DRM_MODE_PAGE_FLIP_EVENT, token);
 		if (ret) {
 			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 				   "flip queue failed: %s\n", strerror(errno));
-
-			free(flipcarrier);
+			drmmode_event_abort(scrn, 0, false);
 			if (emitted == 0)
 				free(flipdata);
 			goto error_undo;
@@ -511,12 +513,13 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 			 unsigned int tv_sec, unsigned int tv_usec,
 			 struct nouveau_dri2_vblank_state *s);
 
-void
-nouveau_dri2_vblank_handler(int fd, unsigned int frame,
-			    unsigned int tv_sec, unsigned int tv_usec,
-			    void *event_data)
+static void
+nouveau_dri2_vblank_handler(void *priv, uint64_t name, uint64_t ust, uint32_t msc)
 {
-	struct nouveau_dri2_vblank_state *s = event_data;
+	struct nouveau_dri2_vblank_state *s = priv;
+	const unsigned int tv_sec  = ust / 1000000;
+	const unsigned int tv_usec = ust % 1000000;
+	const unsigned int frame = msc;
 	DrawablePtr draw;
 	int ret;
 
@@ -557,34 +560,34 @@ nouveau_wait_vblank(DrawablePtr draw, int type, CARD64 msc,
 	int crtcs = nv_window_belongs_to_crtc(scrn, draw->x, draw->y,
 					      draw->width, draw->height);
 	drmVBlank vbl;
-	void *data;
+	struct nouveau_dri2_vblank_state *data;
+	void *token;
 	int ret;
 
 	if (type & DRM_VBLANK_EVENT) {
-		data = malloc(sizeof(*s));
+		data = drmmode_event_queue(scrn, 0, sizeof(*data),
+					   nouveau_dri2_vblank_handler, &token);
 		if (!data)
 			return -ENOMEM;
 		memcpy(data, s, sizeof(*s));
 	} else {
-		data = s;
+		data = token = s;
 	}
 
 	vbl.request.type = type | (crtcs == 2 ? DRM_VBLANK_SECONDARY : 0);
 	vbl.request.sequence = msc;
-	vbl.request.signal = (unsigned long)data;
+	vbl.request.signal = (unsigned long)token;
 
 	ret = drmWaitVBlank(pNv->dev->fd, &vbl);
 	if (ret) {
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 			   "Wait for VBlank failed: %s\n", strerror(errno));
+		drmmode_event_abort(scrn, 0, false);
 		return ret;
 	}
 
-	if (type & DRM_VBLANK_EVENT) {
-		s = data;
-		s->frame = vbl.reply.sequence + 1;
-	}
-
+	if (type & DRM_VBLANK_EVENT)
+		data->frame = vbl.reply.sequence + 1;
 	if (pmsc)
 		*pmsc = vbl.reply.sequence;
 	if (pust)
