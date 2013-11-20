@@ -115,6 +115,21 @@ drmmode_from_scrn(ScrnInfoPtr scrn)
 	return NULL;
 }
 
+int
+drmmode_head(xf86CrtcPtr crtc)
+{
+	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+	return drmmode_crtc->mode_crtc->crtc_id;
+}
+
+void
+drmmode_swap(ScrnInfoPtr scrn, uint32_t next, uint32_t *prev)
+{
+	drmmode_ptr drmmode = drmmode_from_scrn(scrn);
+	*prev = drmmode->fb_id;
+	drmmode->fb_id = next;
+}
+
 static PixmapPtr
 drmmode_pixmap_wrap(ScreenPtr pScreen, int width, int height, int depth,
 		    int bpp, int pitch, struct nouveau_bo *bo, void *data)
