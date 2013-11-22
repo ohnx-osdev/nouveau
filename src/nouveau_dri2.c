@@ -327,7 +327,7 @@ typedef struct {
     int fd;
     unsigned old_fb_id;
     int flip_count;
-    void *event_data;
+    struct nouveau_dri2_vblank_state event_data;
     unsigned int fe_frame;
     unsigned int fe_tv_sec;
     unsigned int fe_tv_usec;
@@ -340,9 +340,9 @@ typedef struct {
 
 static void
 nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
-				unsigned int tv_usec, void *event_data)
+				unsigned int tv_usec,
+				struct nouveau_dri2_vblank_state *flip)
 {
-	struct nouveau_dri2_vblank_state *flip = event_data;
 	DrawablePtr draw;
 	ScreenPtr screen;
 	ScrnInfoPtr scrn;
@@ -350,10 +350,8 @@ nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
 
 	status = dixLookupDrawable(&draw, flip->draw, serverClient,
 				   M_ANY, DixWriteAccess);
-	if (status != Success) {
-		free(flip);
+	if (status != Success)
 		return;
-	}
 
 	screen = draw->pScreen;
 	scrn = xf86ScreenToScrn(screen);
@@ -389,8 +387,6 @@ nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
 		/* Unknown type */
 		break;
 	}
-
-	free(flip);
 }
 
 void
@@ -417,19 +413,20 @@ drmmode_flip_handler(int fd, unsigned int frame, unsigned int tv_sec,
 	/* Release framebuffer */
 	drmModeRmFB(flipdata->fd, flipdata->old_fb_id);
 
-	if (flipdata->event_data == NULL) {
+	if (flipdata->event_data.client == NULL) {
 		free(flipdata);
 		return;
 	}
 
 	/* Deliver cached msc, ust from reference crtc to flip event handler */
 	nouveau_dri2_flip_event_handler(flipdata->fe_frame, flipdata->fe_tv_sec,
-					flipdata->fe_tv_usec, flipdata->event_data);
+					flipdata->fe_tv_usec, &flipdata->event_data);
 	free(flipdata);
 }
 
 static Bool
-drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv,
+drmmode_page_flip(DrawablePtr draw, PixmapPtr back,
+		  struct nouveau_dri2_vblank_state *s,
 		  unsigned int ref_crtc_hw_id)
 {
 	ScrnInfoPtr scrn = xf86ScreenToScrn(draw->pScreen);
@@ -458,7 +455,8 @@ drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv,
 		goto error_undo;
 	}
 
-	flipdata->event_data = priv;
+	if (s)
+		flipdata->event_data = *s;
 	flipdata->fd = pNv->dev->fd;
 
 	for (i = 0; i < config->num_crtc; i++) {
@@ -524,10 +522,8 @@ nouveau_dri2_vblank_handler(int fd, unsigned int frame,
 
 	ret = dixLookupDrawable(&draw, s->draw, serverClient,
 				M_ANY, DixWriteAccess);
-	if (ret) {
-		free(s);
+	if (ret)
 		return;
-	}
 
 	switch (s->action) {
 	case SWAP:
@@ -542,27 +538,36 @@ nouveau_dri2_vblank_handler(int fd, unsigned int frame,
 
 	case WAIT:
 		DRI2WaitMSCComplete(s->client, draw, frame, tv_sec, tv_usec);
-		free(s);
 		break;
 
 	case BLIT:
 		DRI2SwapComplete(s->client, draw, frame, tv_sec, tv_usec,
 				 DRI2_BLIT_COMPLETE, s->func, s->data);
-		free(s);
 		break;
 	}
 }
 
 static int
 nouveau_wait_vblank(DrawablePtr draw, int type, CARD64 msc,
-		    CARD64 *pmsc, CARD64 *pust, void *data)
+		    CARD64 *pmsc, CARD64 *pust,
+		    struct nouveau_dri2_vblank_state *s)
 {
 	ScrnInfoPtr scrn = xf86ScreenToScrn(draw->pScreen);
 	NVPtr pNv = NVPTR(scrn);
 	int crtcs = nv_window_belongs_to_crtc(scrn, draw->x, draw->y,
 					      draw->width, draw->height);
 	drmVBlank vbl;
+	void *data;
 	int ret;
+
+	if (type & DRM_VBLANK_EVENT) {
+		data = malloc(sizeof(*s));
+		if (!data)
+			return -ENOMEM;
+		memcpy(data, s, sizeof(*s));
+	} else {
+		data = s;
+	}
 
 	vbl.request.type = type | (crtcs == 2 ? DRM_VBLANK_SECONDARY : 0);
 	vbl.request.sequence = msc;
@@ -573,6 +578,11 @@ nouveau_wait_vblank(DrawablePtr draw, int type, CARD64 msc,
 		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 			   "Wait for VBlank failed: %s\n", strerror(errno));
 		return ret;
+	}
+
+	if (type & DRM_VBLANK_EVENT) {
+		s = data;
+		s->frame = vbl.reply.sequence + 1;
 	}
 
 	if (pmsc)
@@ -654,7 +664,7 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 						violate_oml(draw) ? NULL : s,
 						ref_crtc_hw_id);
 			if (!ret)
-				goto out;
+				return;
 		}
 
 		SWAP(s->dst->name, s->src->name);
@@ -720,8 +730,6 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 	 */
 	DRI2SwapComplete(s->client, draw, frame, tv_sec, tv_usec,
 			 type, s->func, s->data);
-out:
-	free(s);
 }
 
 static Bool
@@ -730,18 +738,12 @@ nouveau_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 			   CARD64 *target_msc, CARD64 divisor, CARD64 remainder,
 			   DRI2SwapEventPtr func, void *data)
 {
-	struct nouveau_dri2_vblank_state *s;
+	struct nouveau_dri2_vblank_state s = {
+		SWAP, client, draw->id, dst, src, func, data, 0
+	};
 	CARD64 current_msc, expect_msc;
 	CARD64 current_ust;
 	int ret;
-
-	/* Initialize a swap structure */
-	s = malloc(sizeof(*s));
-	if (!s)
-		return FALSE;
-
-	*s = (struct nouveau_dri2_vblank_state)
-		{ SWAP, client, draw->id, dst, src, func, data, 0 };
 
 	if (can_sync_to_vblank(draw)) {
 		/* Get current sequence and vblank time*/
@@ -778,12 +780,12 @@ nouveau_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 			 * This also optimizes for the common case of swap
 			 * at next vblank, avoiding vblank dispatch delay.
 			 */
-			s->frame = 1 + ((unsigned int) current_msc & 0xffffffff);
+			s.frame = 1 + ((unsigned int) current_msc & 0xffffffff);
 			*target_msc = 1 + current_msc;
 			nouveau_dri2_finish_swap(draw, current_msc,
 						 (unsigned int) (current_ust / 1000000),
 						 (unsigned int) (current_ust % 1000000),
-						 s);
+						 &s);
 			return TRUE;
 		}
 
@@ -814,20 +816,18 @@ nouveau_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 		ret = nouveau_wait_vblank(draw, DRM_VBLANK_ABSOLUTE |
 					  DRM_VBLANK_EVENT,
 					  max(current_msc, *target_msc - 1),
-					  &expect_msc, NULL, s);
+					  &expect_msc, NULL, &s);
 		if (ret)
 			goto fail;
-		s->frame = 1 + ((unsigned int) expect_msc & 0xffffffff);
 		*target_msc = 1 + expect_msc;
 	} else {
 		/* We can't/don't want to sync to vblank, just swap. */
-		nouveau_dri2_finish_swap(draw, 0, 0, 0, s);
+		nouveau_dri2_finish_swap(draw, 0, 0, 0, &s);
 	}
 
 	return TRUE;
 
 fail:
-	free(s);
 	return FALSE;
 }
 
@@ -835,7 +835,9 @@ static Bool
 nouveau_dri2_schedule_wait(ClientPtr client, DrawablePtr draw,
 			   CARD64 target_msc, CARD64 divisor, CARD64 remainder)
 {
-	struct nouveau_dri2_vblank_state *s;
+	struct nouveau_dri2_vblank_state s = {
+		WAIT, client, draw->id
+	};
 	CARD64 current_msc;
 	int ret;
 
@@ -851,18 +853,11 @@ nouveau_dri2_schedule_wait(ClientPtr client, DrawablePtr draw,
 		return TRUE;
 	}
 
-	/* Initialize a vblank structure */
-	s = malloc(sizeof(*s));
-	if (!s)
-		return FALSE;
-
-	*s = (struct nouveau_dri2_vblank_state) { WAIT, client, draw->id };
-
 	/* Get current sequence */
 	ret = nouveau_wait_vblank(draw, DRM_VBLANK_RELATIVE, 0,
 				  &current_msc, NULL, NULL);
 	if (ret)
-		goto fail;
+		return FALSE;
 
 	/* Calculate a wait target if we don't have one */
 	if (current_msc >= target_msc && divisor)
@@ -873,15 +868,12 @@ nouveau_dri2_schedule_wait(ClientPtr client, DrawablePtr draw,
 	ret = nouveau_wait_vblank(draw, DRM_VBLANK_ABSOLUTE |
 				  DRM_VBLANK_EVENT,
 				  max(current_msc, target_msc),
-				  NULL, NULL, s);
+				  NULL, NULL, &s);
 	if (ret)
-		goto fail;
+		return FALSE;
 
 	DRI2BlockClient(client, draw);
 	return TRUE;
-fail:
-	free(s);
-	return FALSE;
 }
 
 static Bool
